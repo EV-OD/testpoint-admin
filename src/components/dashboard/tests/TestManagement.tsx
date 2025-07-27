@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from 'react';
-import { tests as initialTests, groups as allGroups } from '@/lib/data';
+import { useState, useEffect, useCallback } from 'react';
 import type { Test, Group } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,12 +10,39 @@ import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { TestForm } from './TestForm';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { getTests, deleteTest, upsertTest, getGroups } from '@/lib/supabase/queries';
+
+type TestWithGroup = Test & { groups: { name: string } | null };
 
 export function TestManagement() {
-  const [tests, setTests] = useState<Test[]>(initialTests);
+  const [tests, setTests] = useState<TestWithGroup[]>([]);
+  const [allGroups, setAllGroups] = useState<Group[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<Test | undefined>(undefined);
   const { toast } = useToast();
+
+  const fetchTests = useCallback(async () => {
+    const { data, error } = await getTests();
+    if (error) {
+      toast({ title: "Error fetching tests", description: error.message, variant: "destructive" });
+    } else {
+      setTests(data as TestWithGroup[] || []);
+    }
+  }, [toast]);
+
+  const fetchGroups = useCallback(async () => {
+    const { data, error } = await getGroups();
+    if (error) {
+      toast({ title: "Error fetching groups", description: error.message, variant: "destructive" });
+    } else {
+      setAllGroups(data || []);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchTests();
+    fetchGroups();
+  }, [fetchTests, fetchGroups]);
 
   const handleAddNew = () => {
     setSelectedTest(undefined);
@@ -28,36 +54,29 @@ export function TestManagement() {
     setIsFormOpen(true);
   };
   
-  const handleDelete = (testId: string) => {
-    setTests(tests.filter((test) => test.id !== testId));
-    toast({
-      title: "Test Deleted",
-      description: "The test has been successfully deleted.",
-      variant: "destructive",
-    });
+  const handleDelete = async (testId: string) => {
+    const { error } = await deleteTest(testId);
+    if(error){
+       toast({ title: "Error deleting test", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Test Deleted", description: "The test has been successfully deleted.", variant: "destructive" });
+      fetchTests();
+    }
   };
 
-  const handleSaveTest = (testData: Test) => {
-    if (selectedTest) {
-      setTests(tests.map((t) => (t.id === testData.id ? testData : t)));
-       toast({
-        title: "Test Updated",
-        description: "The test details have been successfully updated.",
-      });
+  const handleSaveTest = async (testData: Omit<Test, 'id'> & { id?: string }) => {
+    const { error } = await upsertTest(testData);
+
+    if (error) {
+      toast({ title: "Error saving test", description: error.message, variant: "destructive" });
     } else {
-      setTests([...tests, { ...testData, id: `t${Date.now()}` }]);
-       toast({
-        title: "Test Created",
-        description: "A new test has been successfully created.",
-      });
+      toast({ title: testData.id ? "Test Updated" : "Test Created", description: `The test has been successfully ${testData.id ? 'updated' : 'created'}.`});
+      fetchTests();
     }
+
     setIsFormOpen(false);
     setSelectedTest(undefined);
   };
-
-  const getGroupName = (groupId: string) => {
-    return allGroups.find(g => g.id === groupId)?.name || 'N/A';
-  }
 
   return (
     <>
@@ -89,10 +108,10 @@ export function TestManagement() {
                 {tests.map((test) => (
                   <TableRow key={test.id}>
                     <TableCell className="font-medium">{test.name}</TableCell>
-                    <TableCell className="hidden md:table-cell text-muted-foreground">{getGroupName(test.groupId)}</TableCell>
-                    <TableCell className="hidden sm:table-cell text-muted-foreground">{format(test.dateTime, 'PPp')}</TableCell>
-                    <TableCell className="hidden lg:table-cell text-muted-foreground">{test.timeLimit} mins</TableCell>
-                    <TableCell className="hidden lg:table-cell text-muted-foreground">{test.questionCount}</TableCell>
+                    <TableCell className="hidden md:table-cell text-muted-foreground">{test.groups?.name || 'N/A'}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-muted-foreground">{format(new Date(test.date_time), 'PPp')}</TableCell>
+                    <TableCell className="hidden lg:table-cell text-muted-foreground">{test.time_limit} mins</TableCell>
+                    <TableCell className="hidden lg:table-cell text-muted-foreground">{test.question_count}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

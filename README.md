@@ -41,12 +41,26 @@ Next, you need to configure the authentication provider and redirect URLs.
 5.  Set your **Site URL** to your development server address. For this project, it is `http://localhost:9002`.
 6.  Add `http://localhost:9002/auth/callback` to the **Redirect URLs** list.
 
-### 4. Create a User
+### 4. Set up the Database Schema
 
-Finally, you need a user to log in with.
+This application requires specific tables in your database.
+
+1.  Go to the **SQL Editor** in your Supabase dashboard.
+2.  Click on **New query**.
+3.  Open the file `supabase/migrations/20240730120000_init.sql` from this project.
+4.  Copy the entire content of the file.
+5.  Paste the content into the SQL editor in your Supabase dashboard.
+6.  Click **Run**. This will create all the necessary tables, relationships, and security policies.
+
+
+### 5. Create an Admin User
+
+Finally, you need an admin user to log in with.
 
 1.  Go to the **Authentication** section.
 2.  Click on **Users**.
-3.  Click **Add user** and create a new user with an email and a password.
+3.  Click **Invite** and create a new user with an email and a password.
+4.  After the user is created, go to the **Table Editor** and select the `profiles` table.
+5.  Find the row for the user you just created and change their `role` to `admin`.
 
-Once you've completed these steps, you should be able to run the application and log in with the user you just created!
+Once you've completed these steps, you should be able to run the application, and all data will be fetched from and saved to your Supabase project.

@@ -11,9 +11,17 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const userFormSchema = z.object({
+  id: z.string().optional(),
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   email: z.string().email({ message: "Please enter a valid email address." }),
   role: z.enum(['admin', 'teacher', 'student']),
+  password: z.string().optional(),
+}).refine(data => {
+    // If it is a new user (no id), password is required.
+    return !!data.id || (!!data.password && data.password.length >= 6);
+}, {
+    message: "Password must be at least 6 characters long for new users.",
+    path: ["password"],
 });
 
 type UserFormValues = z.infer<typeof userFormSchema>;
@@ -27,15 +35,16 @@ interface UserFormProps {
 export function UserForm({ user, onSave, onClose }: UserFormProps) {
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
-    defaultValues: user ? { name: user.name, email: user.email, role: user.role } : {
+    defaultValues: user ? { id: user.id, name: user.name, email: user.email, role: user.role } : {
       name: '',
       email: '',
       role: 'student',
+      password: ''
     },
   });
 
   const onSubmit = (data: UserFormValues) => {
-    onSave({ ...user, ...data, groupIds: user?.groupIds || [] });
+    onSave({ ...data, id: user?.id });
   };
 
   return (
@@ -69,12 +78,27 @@ export function UserForm({ user, onSave, onClose }: UserFormProps) {
                 <FormItem>
                   <FormLabel>Email Address</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="name@example.com" {...field} />
+                    <Input type="email" placeholder="name@example.com" {...field} disabled={!!user}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            {!user && (
+                 <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                            <Input type="password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            )}
             <FormField
               control={form.control}
               name="role"

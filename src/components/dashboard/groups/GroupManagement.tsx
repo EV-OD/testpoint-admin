@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from 'react';
-import { groups as initialGroups, users as allUsers } from '@/lib/data';
+import { useState, useEffect, useCallback } from 'react';
 import type { Group, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,81 +9,81 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { GroupForm } from './GroupForm';
 import { useToast } from '@/hooks/use-toast';
+import {
+  getGroupsWithMemberCount,
+  deleteGroup,
+  upsertGroup,
+  getUsers,
+  getGroupWithMembers,
+} from '@/lib/supabase/queries';
+
+type GroupWithMemberCount = Group & { member_count: number };
 
 export function GroupManagement() {
-  const [groups, setGroups] = useState<Group[]>(initialGroups);
-  const [users, setUsers] = useState<User[]>(allUsers);
+  const [groups, setGroups] = useState<GroupWithMemberCount[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<Group | undefined>(undefined);
+  const [selectedGroup, setSelectedGroup] = useState< (Group & { userIds: string[] }) | undefined>(undefined);
   const { toast } = useToast();
+
+  const fetchGroups = useCallback(async () => {
+    const { data, error } = await getGroupsWithMemberCount();
+    if (error) {
+      toast({ title: "Error fetching groups", description: error.message, variant: "destructive" });
+    } else {
+      setGroups(data || []);
+    }
+  }, [toast]);
+
+  const fetchUsers = useCallback(async () => {
+    const { data, error } = await getUsers();
+    if (error) {
+      toast({ title: "Error fetching users", description: error.message, variant: "destructive" });
+    } else {
+      setAllUsers(data || []);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchGroups();
+    fetchUsers();
+  }, [fetchGroups, fetchUsers]);
 
   const handleAddNew = () => {
     setSelectedGroup(undefined);
     setIsFormOpen(true);
   };
 
-  const handleEdit = (group: Group) => {
-    setSelectedGroup(group);
+  const handleEdit = async (group: Group) => {
+    const { data, error } = await getGroupWithMembers(group.id);
+    if(error){
+      toast({ title: "Error fetching group details", description: error.message, variant: "destructive" });
+      return;
+    }
+    setSelectedGroup(data);
     setIsFormOpen(true);
   };
   
-  const handleDelete = (groupId: string) => {
-    // Also remove group from users
-    setUsers(currentUsers => currentUsers.map(u => ({
-      ...u,
-      groupIds: u.groupIds.filter(id => id !== groupId)
-    })))
-    setGroups(groups.filter((group) => group.id !== groupId));
-
-    toast({
-      title: "Group Deleted",
-      description: "The group has been successfully deleted.",
-      variant: "destructive",
-    });
+  const handleDelete = async (groupId: string) => {
+    const { error } = await deleteGroup(groupId);
+    if (error) {
+      toast({ title: "Error deleting group", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Group Deleted", description: "The group has been successfully deleted.", variant: "destructive" });
+      fetchGroups();
+    }
   };
 
-  const handleSaveGroup = (groupData: {id?: string; name: string, userIds: string[]}) => {
-    const { id, name, userIds } = groupData;
-    
-    if (id) {
-      // Update existing group
-      setGroups(groups.map((g) => (g.id === id ? { ...g, name } : g)));
-       toast({
-        title: "Group Updated",
-        description: "The group has been successfully updated.",
-      });
+  const handleSaveGroup = async (groupData: {id?: string; name: string, userIds: string[]}) => {
+    const { error } = await upsertGroup(groupData);
+    if (error) {
+      toast({ title: "Error saving group", description: error.message, variant: "destructive" });
     } else {
-      // Create new group
-      const newGroup = { id: `g${Date.now()}`, name };
-      setGroups([...groups, newGroup]);
-      toast({
-        title: "Group Created",
-        description: "A new group has been successfully created.",
-      });
+      toast({ title: groupData.id ? "Group Updated" : "Group Created", description: `The group has been successfully ${groupData.id ? 'updated' : 'created'}.` });
+      fetchGroups();
     }
-
-    const groupId = id || `g${Date.now()}`;
-
-    // Update user associations
-    setUsers(currentUsers => currentUsers.map(user => {
-      const isInGroup = userIds.includes(user.id);
-      const wasInGroup = user.groupIds.includes(groupId);
-
-      if (isInGroup && !wasInGroup) {
-        return { ...user, groupIds: [...user.groupIds, groupId] };
-      }
-      if (!isInGroup && wasInGroup) {
-        return { ...user, groupIds: user.groupIds.filter(gid => gid !== groupId) };
-      }
-      return user;
-    }));
-
     setIsFormOpen(false);
     setSelectedGroup(undefined);
-  };
-
-  const getUserCountForGroup = (groupId: string) => {
-    return users.filter(user => user.groupIds.includes(groupId)).length;
   };
 
   return (
@@ -114,7 +113,7 @@ export function GroupManagement() {
                 {groups.map((group) => (
                   <TableRow key={group.id}>
                     <TableCell className="font-medium">{group.name}</TableCell>
-                    <TableCell>{getUserCountForGroup(group.id)}</TableCell>
+                    <TableCell>{group.member_count}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -146,7 +145,7 @@ export function GroupManagement() {
       {isFormOpen && (
         <GroupForm
           group={selectedGroup}
-          allUsers={users}
+          allUsers={allUsers}
           onSave={handleSaveGroup}
           onClose={() => setIsFormOpen(false)}
         />

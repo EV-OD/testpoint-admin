@@ -17,10 +17,10 @@ import { format } from 'date-fns';
 
 const testFormSchema = z.object({
   name: z.string().min(3, { message: "Test name must be at least 3 characters." }),
-  groupId: z.string({ required_error: "Please select a group." }),
-  timeLimit: z.coerce.number().min(1, { message: "Time limit must be at least 1 minute." }),
-  questionCount: z.coerce.number().min(1, { message: "Must have at least 1 question." }),
-  dateTime: z.date({ required_error: "A date and time for the test is required." }),
+  group_id: z.string({ required_error: "Please select a group." }),
+  time_limit: z.coerce.number().min(1, { message: "Time limit must be at least 1 minute." }),
+  question_count: z.coerce.number().min(1, { message: "Must have at least 1 question." }),
+  date_time: z.date({ required_error: "A date and time for the test is required." }),
 });
 
 type TestFormValues = z.infer<typeof testFormSchema>;
@@ -28,23 +28,24 @@ type TestFormValues = z.infer<typeof testFormSchema>;
 interface TestFormProps {
   test?: Test;
   allGroups: Group[];
-  onSave: (test: Test) => void;
+  onSave: (test: Omit<Test, 'id'> & { id?: string }) => void;
   onClose: () => void;
 }
 
 export function TestForm({ test, allGroups, onSave, onClose }: TestFormProps) {
   const form = useForm<TestFormValues>({
     resolver: zodResolver(testFormSchema),
-    defaultValues: test || {
-      name: '',
-      timeLimit: 60,
-      questionCount: 25,
-      dateTime: new Date(),
+    defaultValues: {
+        name: test?.name || '',
+        group_id: test?.group_id || undefined,
+        time_limit: test?.time_limit || 60,
+        question_count: test?.question_count || 25,
+        date_time: test?.date_time ? new Date(test.date_time) : new Date(),
     },
   });
 
   const onSubmit = (data: TestFormValues) => {
-    onSave({ ...test, ...data });
+    onSave({ id: test?.id, ...data });
   };
 
   return (
@@ -73,7 +74,7 @@ export function TestForm({ test, allGroups, onSave, onClose }: TestFormProps) {
             />
             <FormField
               control={form.control}
-              name="groupId"
+              name="group_id"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Group</FormLabel>
@@ -96,7 +97,7 @@ export function TestForm({ test, allGroups, onSave, onClose }: TestFormProps) {
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="timeLimit"
+                name="time_limit"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Time Limit (mins)</FormLabel>
@@ -109,7 +110,7 @@ export function TestForm({ test, allGroups, onSave, onClose }: TestFormProps) {
               />
               <FormField
                 control={form.control}
-                name="questionCount"
+                name="question_count"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>No. of Questions</FormLabel>
@@ -123,7 +124,7 @@ export function TestForm({ test, allGroups, onSave, onClose }: TestFormProps) {
             </div>
              <FormField
               control={form.control}
-              name="dateTime"
+              name="date_time"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Test Date & Time</FormLabel>

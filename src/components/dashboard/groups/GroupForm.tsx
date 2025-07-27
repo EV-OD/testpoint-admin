@@ -21,23 +21,18 @@ const groupFormSchema = z.object({
 type GroupFormValues = z.infer<typeof groupFormSchema>;
 
 interface GroupFormProps {
-  group?: Group;
+  group?: Group & { userIds?: string[] };
   allUsers: User[];
   onSave: (group: {id?: string, name: string; userIds: string[]}) => void;
   onClose: () => void;
 }
 
 export function GroupForm({ group, allUsers, onSave, onClose }: GroupFormProps) {
-  const getInitialUserIds = () => {
-    if (!group) return [];
-    return allUsers.filter(u => u.groupIds.includes(group.id)).map(u => u.id);
-  }
-
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(groupFormSchema),
     defaultValues: {
       name: group?.name || '',
-      userIds: getInitialUserIds(),
+      userIds: group?.userIds || [],
     },
   });
 

@@ -1,9 +1,8 @@
 export type User = {
-  id: string;
+  id: string; // This will correspond to the auth.users.id
   name: string;
   email: string;
   role: 'teacher' | 'student' | 'admin';
-  groupIds: string[];
 };
 
 export type Group = {
@@ -14,8 +13,8 @@ export type Group = {
 export type Test = {
   id: string;
   name: string;
-  groupId: string;
-  timeLimit: number; // in minutes
-  questionCount: number;
-  dateTime: Date;
+  group_id: string;
+  time_limit: number; // in minutes
+  question_count: number;
+  date_time: string; // ISO 8601 format
 };
