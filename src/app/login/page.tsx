@@ -22,16 +22,17 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) {
-      setError(error.message);
+    if (signInError) {
+      console.error('Detailed Supabase Login Error:', signInError);
+      setError(signInError.message);
       toast({
         title: 'Login Failed',
-        description: error.message,
+        description: signInError.message,
         variant: 'destructive',
       });
     } else {
