@@ -1,61 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
-import sql from '@/lib/db';
-import bcrypt from 'bcryptjs';
-import { getIronSession } from 'iron-session';
-import { sessionOptions } from '@/lib/session';
+import { createClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
-
-async function isAdmin() {
-    const session = await getIronSession(cookies(), sessionOptions);
-    return session.user && session.user.role === 'admin';
-}
 
 // GET all users
 export async function GET() {
-    if (!(await isAdmin())) {
+    const cookieStore = cookies();
+    const supabase = createClient(cookieStore);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+
+    // Check if the user is an admin
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') {
         return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
     try {
-        const users = await sql`
-            SELECT p.id, p.name, p.email, p.role, 
-                   COALESCE(json_agg(json_build_object('name', g.name)) FILTER (WHERE g.id IS NOT NULL), '[]') as groups
-            FROM profiles p
-            LEFT JOIN user_groups ug ON p.id = ug.user_id
-            LEFT JOIN groups g ON ug.group_id = g.id
-            GROUP BY p.id
-        `;
+        const { data: users, error } = await supabase.rpc('get_users_with_groups');
+        
+        if (error) throw error;
+        
         return NextResponse.json(users, { status: 200 });
+
     } catch (error) {
-        console.error(error);
+        console.error('Error fetching users:', error);
         return NextResponse.json({ message: 'Database error' }, { status: 500 });
     }
 }
 
 // POST a new user
 export async function POST(req: NextRequest) {
-     if (!(await isAdmin())) {
+    const cookieStore = cookies();
+    const supabase = createClient(cookieStore);
+
+    const { data: { user: adminUser } } = await supabase.auth.getUser();
+    if (!adminUser) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+
+    // Check if the user is an admin
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', adminUser.id).single();
+    if (profile?.role !== 'admin') {
         return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
     try {
         const { name, email, role, password } = await req.json();
-        const hashedPassword = await bcrypt.hash(password, 10);
-        
-        const [newUser] = await sql`
-            INSERT INTO profiles (name, email, role, password)
-            VALUES (${name}, ${email}, ${role}, ${hashedPassword})
-            RETURNING id, name, email, role
-        `;
 
-        return NextResponse.json(newUser, { status: 201 });
+        // Use the admin client to create a new user
+        const { data: newUser, error: authError } = await supabase.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true, // Or false if you don't want email verification
+        });
 
-    } catch (error) {
-        console.error(error);
+        if (authError) throw authError;
+
+        // Now create the profile for the new user
+        const { error: profileError } = await supabase.from('profiles').insert({
+            id: newUser.user.id,
+            name,
+            role,
+        });
+
+        if (profileError) {
+            // If profile creation fails, we should probably delete the auth user
+            await supabase.auth.admin.deleteUser(newUser.user.id);
+            throw profileError;
+        }
+
+        // Return a simplified user object, don't expose sensitive details
+        return NextResponse.json({ id: newUser.user.id, name, email, role }, { status: 201 });
+
+    } catch (error: any) {
+        console.error('Error creating user:', error);
         // Check for unique constraint violation
-        if (error instanceof Error && 'code' in error && error.code === '23505') {
+        if (error.code === '23505' || error.message?.includes('already exists')) {
             return NextResponse.json({ message: 'User with this email already exists' }, { status: 409 });
         }
-        return NextResponse.json({ message: 'Database error creating user' }, { status: 500 });
+        return NextResponse.json({ message: error.message || 'Database error creating user' }, { status: 500 });
     }
 }

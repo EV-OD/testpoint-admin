@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { UserForm } from './UserForm';
 import { useToast } from '@/hooks/use-toast';
-import { createClient } from '@/lib/supabase/client';
 
 type UserWithGroups = User & { groups: { name: string }[] };
 
@@ -19,31 +18,19 @@ export function UserManagement() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
   const { toast } = useToast();
-  const supabase = createClient();
 
   const fetchUsers = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from('profiles').select(`
-        id, name, email, role,
-        groups ( name )
-      `);
-      if (error) throw error;
-
-      // The raw query returns email in the top-level object, but our type expects it inside `auth`
-      // and also the groups relation needs to be flattened. This reshapes the data.
-      const reshapedData = data.map(p => ({
-        id: p.id,
-        name: p.name,
-        role: p.role,
-        email: p.email,
-        groups: p.groups || []
-      })) as UserWithGroups[];
-
-      setUsers(reshapedData);
+      const response = await fetch('/api/users');
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      const data = await response.json();
+      setUsers(data);
     } catch(error) {
       toast({ title: "Error fetching users", description: (error as Error).message, variant: "destructive" });
     }
-  }, [toast, supabase]);
+  }, [toast]);
 
   useEffect(() => {
     fetchUsers();
@@ -61,10 +48,13 @@ export function UserManagement() {
 
   const handleDelete = async (userId: string) => {
     try {
-        // We can't delete users directly this way with RLS.
-        // We need a server-side operation for this.
-        // For now, we'll just show a toast.
-        toast({ title: "Feature not implemented", description: "User deletion must be handled via a server function.", variant: "destructive" });
+       const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+       if (!response.ok) {
+         const errorData = await response.json();
+         throw new Error(errorData.message || 'Failed to delete user');
+       }
+        toast({ title: "User Deleted", description: "The user has been successfully deleted.", variant: 'destructive' });
+        fetchUsers();
     } catch (error) {
       toast({ title: "Error deleting user", description: (error as Error).message, variant: "destructive" });
     }
@@ -72,25 +62,23 @@ export function UserManagement() {
 
   const handleSaveUser = async (userData: any) => {
     const isEditing = !!userData.id;
+    const url = isEditing ? `/api/users/${userData.id}` : '/api/users';
+    const method = isEditing ? 'PUT' : 'POST';
 
     try {
-        if (isEditing) {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ name: userData.name, role: userData.role })
-                .eq('id', userData.id);
-            if (error) throw error;
-        } else {
-            // Creating a user requires calling the admin API, which is not secure from the client.
-            // This should be done in a server action or edge function.
-            // For now, we'll show a toast.
-             toast({ title: "Feature not implemented", description: "User creation must be handled via a server function.", variant: "destructive" });
-             setIsFormOpen(false);
-             return;
-        }
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to ${isEditing ? 'update' : 'create'} user`);
+      }
         
-        toast({ title: isEditing ? "User Updated" : "User Created", description: `The user has been successfully ${isEditing ? 'updated' : 'created'}.`});
-        fetchUsers();
+      toast({ title: isEditing ? "User Updated" : "User Created", description: `The user has been successfully ${isEditing ? 'updated' : 'created'}.`});
+      fetchUsers();
 
     } catch(error) {
         toast({ title: `Error ${isEditing ? 'updating' : 'creating'} user`, description: (error as Error).message, variant: "destructive" });
