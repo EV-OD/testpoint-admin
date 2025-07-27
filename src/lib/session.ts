@@ -1,6 +1,11 @@
 import 'server-only';
 import type { IronSessionOptions } from 'iron-session';
 import type { User } from './types';
+require('dotenv').config();
+
+if (!process.env.SECRET_COOKIE_PASSWORD) {
+    throw new Error('SECRET_COOKIE_PASSWORD is not set');
+}
 
 export const sessionOptions: IronSessionOptions = {
   password: process.env.SECRET_COOKIE_PASSWORD as string,
