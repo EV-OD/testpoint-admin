@@ -7,16 +7,19 @@ import type { User, Group, Test } from "@/lib/types";
 // This admin client is used for operations requiring service_role permissions.
 // It should only be used in server-side code.
 const createAdminClient = () => {
-    return createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
+        throw new Error("Supabase URL or Service Role Key is not defined");
+    }
+
+    return createClient(supabaseUrl, serviceRoleKey, {
          auth: {
             autoRefreshToken: false,
             persistSession: false
          }
-        }
-    );
+    });
 };
 
 
@@ -65,15 +68,14 @@ export async function createUserWithProfile(userData: any) {
     if (authError) return { data: null, error: authError };
 
     if (authData.user) {
-        // Use the server client to insert into profiles table,
-        // as it will respect RLS policies.
-        const supabase = createServerClient();
-        const { error: profileError } = await supabase.from('profiles').insert({
+        // Use the admin client to insert the profile, bypassing RLS.
+        const { error: profileError } = await supabaseAdmin.from('profiles').insert({
             id: authData.user.id,
             name: userData.name,
             email: userData.email,
             role: userData.role,
         });
+
         if (profileError) {
              // If profile creation fails, we must delete the auth user to prevent orphans.
              await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
