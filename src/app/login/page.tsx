@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Cpu } from 'lucide-react';
+import type { User } from '@/lib/types';
+import { users as allUsers } from '@/lib/data';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -19,19 +21,29 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) {
-        setError(error.message);
-      } else {
+
+    const { data: { user: authUser }, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (signInError) {
+      setError(signInError.message);
+      return;
+    }
+
+    if (authUser) {
+      // In a real app, you would fetch this user's profile from a 'profiles' table in your database.
+      // For this demo, we'll look up the user in our mock data.
+      const appUser: User | undefined = allUsers.find(u => u.email.toLowerCase() === authUser.email?.toLowerCase());
+
+      if (appUser && appUser.role === 'admin') {
         router.push('/');
         router.refresh();
+      } else {
+        await supabase.auth.signOut(); // Sign out the non-admin user
+        setError('Access denied. Only admins can log in.');
       }
-    } catch (e) {
-      setError("An unexpected error occurred.");
     }
   };
 
