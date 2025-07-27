@@ -1,16 +1,29 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { UserManagement } from '@/components/dashboard/users/UserManagement';
 import { GroupManagement } from '@/components/dashboard/groups/GroupManagement';
 import { TestManagement } from '@/components/dashboard/tests/TestManagement';
 import { DashboardLayout, type View } from '@/components/dashboard/DashboardLayout';
-
+import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
   const [activeView, setActiveView] = useState<View>('users');
+  const router = useRouter();
+  const supabase = createClient();
 
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/login');
+      }
+    };
+    checkSession();
+  }, [supabase, router]);
+  
   const renderContent = () => {
     switch (activeView) {
       case 'users':
