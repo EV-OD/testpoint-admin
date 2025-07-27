@@ -5,7 +5,7 @@ import React from 'react';
 import Header from '@/components/Header';
 import DashboardSidebar from '@/components/dashboard/DashboardSidebar';
 
-export type View = 'users' | 'groups' | 'tests';
+export type View = 'users' | 'groups' | 'tests' | 'profile';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;

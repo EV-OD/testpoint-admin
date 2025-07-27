@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { UserManagement } from '@/components/dashboard/users/UserManagement';
 import { GroupManagement } from '@/components/dashboard/groups/GroupManagement';
 import { TestManagement } from '@/components/dashboard/tests/TestManagement';
+import { ProfilePage } from '@/components/dashboard/profile/ProfilePage';
 import { DashboardLayout, type View } from '@/components/dashboard/DashboardLayout';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
@@ -32,6 +33,8 @@ export default function Home() {
         return <GroupManagement />;
       case 'tests':
         return <TestManagement />;
+      case 'profile':
+        return <ProfilePage />;
       default:
         return <UserManagement />;
     }
