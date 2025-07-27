@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 
 
 async function getAdminSupabase() {
     const cookieStore = cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = createClient();
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
@@ -15,7 +15,8 @@ async function getAdminSupabase() {
         return null;
     }
     
-    return supabase;
+    // Use the admin client for elevated privileges
+    return createAdminClient();
 }
 
 
@@ -30,7 +31,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     try {
         const { name, role } = await req.json();
         
-        const { data: updatedUser, error } = await supabase
+        const { data: updatedProfile, error } = await supabase
             .from('profiles')
             .update({ name, role })
             .eq('id', id)
@@ -39,15 +40,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
         if (error) throw error;
 
-        if (!updatedUser) {
+        if (!updatedProfile) {
             return NextResponse.json({ message: 'User not found' }, { status: 404 });
         }
 
         // Also fetch the email from the auth.users table
-        const { data: { user: authUser } } = await supabase.auth.admin.getUserById(id);
+        const { data: { user: authUser }, error: userError } = await supabase.auth.admin.getUserById(id);
+        if(userError) throw userError;
+        
         const email = authUser?.email || '';
 
-        return NextResponse.json({ ...updatedUser, email }, { status: 200 });
+        return NextResponse.json({ ...updatedProfile, email }, { status: 200 });
 
     } catch (error: any) {
         console.error('Error updating user:', error);
@@ -63,14 +66,10 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     }
     const { id } = params;
     try {
-        const { error } = await supabase.auth.admin.deleteUser(id);
+        const { error } = await supabase.auth.admin.deleteUser(id, true); // true to soft delete, false to hard delete
 
         if (error) {
-            // The RLS on profiles should cascade delete, but if not, handle it here.
-            // If the user doesn't exist in auth, it might still exist in profiles.
-             const { error: profileError } = await supabase.from('profiles').delete().eq('id', id);
-             if(profileError) throw profileError;
-             else throw error;
+             throw error;
         }
 
         return new NextResponse(null, { status: 204 }); // No Content
