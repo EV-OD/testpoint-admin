@@ -1,54 +1,60 @@
--- Drop existing objects to ensure a clean slate
-DROP FUNCTION IF EXISTS is_admin;
-DROP FUNCTION IF EXISTS get_groups_with_member_count;
-DROP TABLE IF EXISTS public.user_groups CASCADE;
-DROP TABLE IF EXISTS public.tests CASCADE;
-DROP TABLE IF EXISTS public.groups CASCADE;
-DROP TABLE IF EXISTS public.profiles CASCADE;
+-- Drop existing objects to ensure a clean slate on re-runs.
+DROP TABLE IF EXISTS tests CASCADE;
+DROP TABLE IF EXISTS user_groups CASCADE;
+DROP TABLE IF EXISTS groups CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+DROP FUNCTION IF EXISTS get_groups_with_member_count();
+DROP FUNCTION IF EXISTS is_admin();
 
--- Create profiles table
-CREATE TABLE public.profiles (
-    id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    name character varying,
-    email character varying,
-    role character varying
-);
 
--- Create groups table
-CREATE TABLE public.groups (
-    id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
-    name character varying NOT NULL
-);
-
--- Create user_groups junction table
-CREATE TABLE public.user_groups (
-    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    group_id uuid NOT NULL REFERENCES public.groups(id) ON DELETE CASCADE,
-    PRIMARY KEY (user_id, group_id)
-);
-
--- Create tests table
-CREATE TABLE public.tests (
-    id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
-    name character varying,
-    group_id uuid REFERENCES public.groups(id) ON DELETE SET NULL,
-    time_limit integer,
-    question_count integer,
-    date_time timestamp with time zone
-);
-
--- is_admin function
-CREATE OR REPLACE FUNCTION is_admin(user_id uuid)
+-- Helper function to check if the current user is an admin.
+CREATE OR REPLACE FUNCTION is_admin()
 RETURNS boolean AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM profiles WHERE id = user_id AND role = 'admin'
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM profiles
+    WHERE id = auth.uid() AND role = 'admin'
   );
-$$ LANGUAGE sql SECURITY DEFINER;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- get_groups_with_member_count function
+-- PROFILES TABLE: Stores user information.
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'teacher', 'student'))
+);
+
+-- GROUPS TABLE: Stores user groups.
+CREATE TABLE groups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL
+);
+
+-- USER_GROUPS TABLE: Many-to-many relationship between users and groups.
+CREATE TABLE user_groups (
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, group_id)
+);
+
+-- TESTS TABLE: Stores test information.
+CREATE TABLE tests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+  time_limit INT NOT NULL,
+  question_count INT NOT NULL,
+  date_time TIMESTAMPTZ NOT NULL
+);
+
+
+-- Function to get groups with their member counts.
 CREATE OR REPLACE FUNCTION get_groups_with_member_count()
-RETURNS TABLE(id uuid, name character varying, member_count bigint) AS $$
+RETURNS TABLE(id UUID, name TEXT, member_count BIGINT) AS $$
 BEGIN
   RETURN QUERY
   SELECT
@@ -65,64 +71,43 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- Enable Row Level Security
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_groups ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.tests ENABLE ROW LEVEL SECURITY;
+-- Enable Row Level Security (RLS) for all tables.
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tests ENABLE ROW LEVEL SECURITY;
 
 
--- Policies for profiles
-CREATE POLICY "Enable read access for user based on id" ON public.profiles
-  FOR SELECT USING (auth.uid() = id);
+-- POLICIES:
 
-CREATE POLICY "Enable insert for authenticated users" ON public.profiles
-  FOR INSERT WITH CHECK (auth.uid() = id);
+-- Profiles Policies:
+-- 1. Admins can manage all profiles.
+CREATE POLICY "Admins can manage profiles" ON profiles
+  FOR ALL
+  USING (is_admin())
+  WITH CHECK (is_admin());
+-- 2. Users can view their own profile.
+CREATE POLICY "Users can view their own profile" ON profiles
+  FOR SELECT
+  USING (auth.uid() = id);
 
-CREATE POLICY "Enable update for users based on id" ON public.profiles
-  FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+-- Groups Policies:
+-- 1. Admins can manage all groups.
+CREATE POLICY "Admins can manage groups" ON groups
+  FOR ALL
+  USING (is_admin())
+  WITH CHECK (is_admin());
 
-CREATE POLICY "Enable delete for service_role only" ON public.profiles
-  FOR DELETE USING (auth.role() = 'service_role');
+-- User_Groups Policies:
+-- 1. Admins can manage all user-group relationships.
+CREATE POLICY "Admins can manage user_groups" ON user_groups
+  FOR ALL
+  USING (is_admin())
+  WITH CHECK (is_admin());
 
-
--- Policies for groups
-CREATE POLICY "Enable read access for admins" ON public.groups
-  FOR SELECT USING (is_admin(auth.uid()));
-
-CREATE POLICY "Enable insert for admins" ON public.groups
-  FOR INSERT WITH CHECK (is_admin(auth.uid()));
-
-CREATE POLICY "Enable update for admins" ON public.groups
-  FOR UPDATE USING (is_admin(auth.uid()));
-
-CREATE POLICY "Enable delete for admins" ON public.groups
-  FOR DELETE USING (is_admin(auth.uid()));
-
-
--- Policies for user_groups
-CREATE POLICY "Enable read access for admins" ON public.user_groups
-  FOR SELECT USING (is_admin(auth.uid()));
-
-CREATE POLICY "Enable insert for admins" ON public.user_groups
-  FOR INSERT WITH CHECK (is_admin(auth.uid()));
-
-CREATE POLICY "Enable update for admins" ON public.user_groups
-  FOR UPDATE USING (is_admin(auth.uid()));
-
-CREATE POLICY "Enable delete for admins" ON public.user_groups
-  FOR DELETE USING (is_admin(auth.uid()));
-
-
--- Policies for tests
-CREATE POLICY "Enable read access for admins" ON public.tests
-  FOR SELECT USING (is_admin(auth.uid()));
-
-CREATE POLICY "Enable insert for admins" ON public.tests
-  FOR INSERT WITH CHECK (is_admin(auth.uid()));
-
-CREATE POLICY "Enable update for admins" ON public.tests
-  FOR UPDATE USING (is_admin(auth.uid()));
-
-CREATE POLICY "Enable delete for admins" ON public.tests
-  FOR DELETE USING (is_admin(auth.uid()));
+-- Tests Policies:
+-- 1. Admins can manage all tests.
+CREATE POLICY "Admins can manage tests" ON tests
+  FOR ALL
+  USING (is_admin())
+  WITH CHECK (is_admin());
