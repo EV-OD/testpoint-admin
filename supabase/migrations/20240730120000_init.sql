@@ -1,169 +1,104 @@
 
--- Drop existing objects to ensure a clean setup
+-- Drop existing objects to ensure a clean slate
+DROP TABLE IF EXISTS public.user_groups CASCADE;
+DROP TABLE IF EXISTS public.tests CASCADE;
+DROP TABLE IF EXISTS public.profiles CASCADE;
+DROP TABLE IF EXISTS public.groups CASCADE;
+
 DROP FUNCTION IF EXISTS public.get_groups_with_member_count();
 DROP FUNCTION IF EXISTS public.get_users_with_groups();
 DROP FUNCTION IF EXISTS public.handle_new_user();
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
-DROP TABLE IF EXISTS public.tests;
-DROP TABLE IF EXISTS public.user_groups;
-DROP TABLE IF EXISTS public.groups;
-DROP TABLE IF EXISTS public.profiles;
 
--- Create profiles table
-CREATE TABLE public.profiles (
-  id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  name character varying NOT NULL,
-  role character varying NOT NULL DEFAULT 'student'::character varying
+-- USERS & PROFILES
+-- Create a table for public profiles
+create table profiles (
+  id uuid not null references auth.users on delete cascade,
+  name text,
+  role text default 'student'::text,
+  primary key (id)
 );
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+alter table profiles enable row level security;
 
--- Create groups table
-CREATE TABLE public.groups (
-    id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-    name character varying NOT NULL,
-    created_at timestamp with time zone NOT NULL DEFAULT now()
+-- Add row level security for profiles table
+create policy "Public profiles are viewable by everyone." on profiles for select using (true);
+create policy "Users can insert their own profile." on profiles for insert with check (auth.uid() = id);
+create policy "Users can update their own profile." on profiles for update using (auth.uid() = id);
+create policy "Admins can manage any profile" on profiles for all using ( (select auth.uid() in (select id from profiles where role = 'admin')));
+
+
+-- This trigger automatically creates a profile for new users.
+create function public.handle_new_user() 
+returns trigger as $$
+begin
+  insert into public.profiles (id, name, role)
+  values (new.id, new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'role');
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- Create a trigger to automatically create a profile when a new user signs up
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+-- GROUPS
+create table groups (
+  id uuid not null default gen_random_uuid(),
+  name text not null,
+  primary key (id)
 );
-ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
+alter table groups enable row level security;
+create policy "Groups are viewable by authenticated users." on groups for select using (auth.role() = 'authenticated');
+create policy "Admins can manage groups." on groups for all using ( (select auth.uid() in (select id from profiles where role = 'admin')));
 
--- Create user_groups junction table
-CREATE TABLE public.user_groups (
-    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    group_id uuid NOT NULL REFERENCES public.groups(id) ON DELETE CASCADE,
-    PRIMARY KEY (user_id, group_id)
+-- USER_GROUPS (join table)
+create table user_groups (
+  user_id uuid not null references public.profiles on delete cascade,
+  group_id uuid not null references public.groups on delete cascade,
+  primary key (user_id, group_id)
 );
-ALTER TABLE public.user_groups ENABLE ROW LEVEL SECURITY;
+alter table user_groups enable row level security;
+create policy "User group relationships are viewable by authenticated users" on user_groups for select using (auth.role() = 'authenticated');
+create policy "Admins can manage user-group relationships" on user_groups for all using ( (select auth.uid() in (select id from profiles where role = 'admin')));
 
--- Create tests table
-CREATE TABLE public.tests (
-    id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-    name character varying NOT NULL,
-    group_id uuid NOT NULL REFERENCES public.groups(id) ON DELETE CASCADE,
-    time_limit integer NOT NULL,
-    question_count integer NOT NULL,
-    date_time timestamp with time zone NOT NULL,
-    created_at timestamp with time zone NOT NULL DEFAULT now()
+
+-- TESTS
+create table tests (
+  id uuid not null default gen_random_uuid(),
+  name text not null,
+  group_id uuid not null references public.groups on delete cascade,
+  time_limit integer not null,
+  question_count integer not null,
+  date_time timestamptz not null,
+  primary key (id)
 );
-ALTER TABLE public.tests ENABLE ROW LEVEL SECURITY;
+alter table tests enable row level security;
+create policy "Tests are viewable by authenticated users." on tests for select using (auth.role() = 'authenticated');
+create policy "Admins can manage tests." on tests for all using ( (select auth.uid() in (select id from profiles where role = 'admin')));
 
---
--- RLS POLICIES
---
-
--- Profiles table policies
-CREATE POLICY "Allow authenticated users to view profiles" ON "public"."profiles"
-AS PERMISSIVE FOR SELECT
-TO authenticated
-USING (true);
-
-CREATE POLICY "Allow admin users to manage profiles" ON "public"."profiles"
-AS PERMISSIVE FOR ALL
-TO authenticated
-USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin')
-WITH CHECK ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
-
--- Groups table policies
-CREATE POLICY "Allow authenticated users to view groups" ON "public"."groups"
-AS PERMISSIVE FOR SELECT
-TO authenticated
-USING (true);
-
-CREATE POLICY "Allow admin users to manage groups" ON "public"."groups"
-AS PERMISSIVE FOR ALL
-TO authenticated
-USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin')
-WITH CHECK ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
-
--- User_groups table policies
-CREATE POLICY "Allow authenticated users to view their own group memberships" ON "public"."user_groups"
-AS PERMISSIVE FOR SELECT
-TO authenticated
-USING (true);
-
-CREATE POLICY "Allow admin users to manage group memberships" ON "public"."user_groups"
-AS PERMISSIVE FOR ALL
-TO authenticated
-USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin')
-WITH CHECK ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
+-- RPC FUNCTIONS
+create function get_groups_with_member_count()
+returns table(id uuid, name text, member_count bigint) as $$
+begin
+  return query
+  select g.id, g.name, count(ug.user_id) as member_count
+  from groups g
+  left join user_groups ug on g.id = ug.group_id
+  group by g.id, g.name;
+end;
+$$ language plpgsql;
 
 
--- Tests table policies
-CREATE POLICY "Allow authenticated users to view tests" ON "public"."tests"
-AS PERMISSIVE FOR SELECT
-TO authenticated
-USING (true);
+create function get_users_with_groups()
+returns table(id uuid, name text, email text, role text, groups json) as $$
+begin
+  return query
+  select p.id, p.name, u.email, p.role, 
+         (select json_agg(g) from groups g join user_groups ug on g.id = ug.group_id where ug.user_id = p.id) as groups
+  from profiles p
+  join auth.users u on p.id = u.id;
+end;
+$$ language plpgsql;
 
-CREATE POLICY "Allow admin users to manage tests" ON "public"."tests"
-AS PERMISSIVE FOR ALL
-TO authenticated
-USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin')
-WITH CHECK ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
-
-
---
--- FUNCTIONS and TRIGGERS
---
-
--- Function to create a profile for a new user
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-  INSERT INTO public.profiles (id, name, role)
-  VALUES (new.id, new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'role');
-  RETURN new;
-END;
-$$;
-
--- Trigger to handle new user creation
-CREATE TRIGGER on_auth_user_created
-AFTER INSERT ON auth.users
-FOR EACH ROW
-EXECUTE FUNCTION public.handle_new_user();
-
-
--- Function to get users with their group names
-CREATE OR REPLACE FUNCTION public.get_users_with_groups()
-RETURNS TABLE(id uuid, name character varying, email character varying, role character varying, groups json)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  RETURN QUERY
-  SELECT
-    p.id,
-    p.name,
-    u.email,
-    p.role,
-    COALESCE(
-      (
-        SELECT json_agg(json_build_object('name', g.name))
-        FROM public.groups g
-        JOIN public.user_groups ug ON g.id = ug.group_id
-        WHERE ug.user_id = p.id
-      ),
-      '[]'::json
-    ) AS groups
-  FROM
-    public.profiles p
-  JOIN
-    auth.users u ON p.id = u.id;
-END;
-$$;
-
-
--- Function to get groups with member count
-CREATE OR REPLACE FUNCTION public.get_groups_with_member_count()
-RETURNS TABLE(id uuid, name character varying, member_count bigint)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  RETURN QUERY
-  SELECT
-    g.id,
-    g.name,
-    (SELECT count(*) FROM public.user_groups ug WHERE ug.group_id = g.id) AS member_count
-  FROM
-    public.groups g;
-END;
-$$;
