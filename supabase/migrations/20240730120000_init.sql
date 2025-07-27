@@ -1,91 +1,96 @@
--- Create User Profiles Table
-CREATE TABLE profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'teacher', 'student'))
+
+-- Drop existing objects to ensure a clean slate on re-runs
+DROP FUNCTION IF EXISTS get_groups_with_member_count();
+DROP TABLE IF EXISTS user_groups CASCADE;
+DROP TABLE IF EXISTS tests CASCADE;
+DROP TABLE IF EXISTS groups CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+
+
+-- Create a table for public profiles
+create table profiles (
+  id uuid not null references auth.users on delete cascade,
+  name text,
+  email text,
+  role text,
+  primary key (id)
 );
 
--- Create Groups Table
-CREATE TABLE groups (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- Create groups table
+create table groups (
+  id uuid primary key default gen_random_uuid(),
+  name text not null
 );
 
--- Create User/Groups Junction Table
-CREATE TABLE user_groups (
-  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-  PRIMARY KEY (user_id, group_id)
+-- Create tests table
+create table tests (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  group_id uuid references groups(id) on delete cascade,
+  time_limit integer not null,
+  question_count integer not null,
+  date_time timestamptz not null
 );
 
--- Create Tests Table
-CREATE TABLE tests (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-  time_limit INT NOT NULL, -- in minutes
-  question_count INT NOT NULL,
-  date_time TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- Create a join table for user-group many-to-many relationship
+create table user_groups (
+  user_id uuid references profiles(id) on delete cascade,
+  group_id uuid references groups(id) on delete cascade,
+  primary key (user_id, group_id)
 );
 
--- Function to get user role
-CREATE OR REPLACE FUNCTION get_user_role(user_id UUID)
-RETURNS VARCHAR AS $$
-  SELECT role FROM profiles WHERE id = user_id;
-$$ LANGUAGE sql STABLE;
 
--- Function to get groups with member count
-CREATE OR REPLACE FUNCTION get_groups_with_member_count()
-RETURNS TABLE (id UUID, name VARCHAR, member_count BIGINT) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT
+-- Set up Row Level Security (RLS)
+--
+-- PROFILES
+alter table profiles enable row level security;
+
+-- Allow admins to perform any action on profiles
+create policy "Admins can manage profiles" on profiles
+  for all
+  using ( (select auth.jwt() ->> 'email') IN (select email from profiles where role = 'admin') );
+
+-- Allow users to view their own profile
+create policy "Users can view their own profile" on profiles
+  for select
+  using ( auth.uid() = id );
+  
+-- Allow new users to be created
+create policy "Allow anonymous creation of profiles" on profiles
+  for insert
+  with check (true);
+
+
+-- GROUPS
+alter table groups enable row level security;
+create policy "Allow admins to manage groups" on groups for all
+using ( (select auth.jwt() ->> 'email') IN (select email from profiles where role = 'admin') );
+
+-- TESTS
+alter table tests enable row level security;
+create policy "Allow admins to manage tests" on tests for all
+using ( (select auth.jwt() ->> 'email') IN (select email from profiles where role = 'admin') );
+
+-- USER_GROUPS
+alter table user_groups enable row level security;
+create policy "Allow admins to manage user_groups" on user_groups for all
+using ( (select auth.jwt() ->> 'email') IN (select email from profiles where role = 'admin') );
+
+
+-- Create a function to get group member counts
+create or replace function get_groups_with_member_count()
+returns table(id uuid, name text, member_count bigint) as $$
+begin
+  return query
+  select
     g.id,
     g.name,
-    COUNT(ug.user_id) as member_count
-  FROM
+    count(ug.user_id) as member_count
+  from
     groups g
-  LEFT JOIN
-    user_groups ug ON g.id = ug.group_id
-  GROUP BY
-    g.id, g.name;
-END;
-$$ LANGUAGE plpgsql;
-
-
--- ROW LEVEL SECURITY POLICIES --
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_groups ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tests ENABLE ROW LEVEL SECURITY;
-
--- Profiles Policies
-CREATE POLICY "Allow admins to manage profiles" ON profiles
-  FOR ALL
-  USING (get_user_role(auth.uid()) = 'admin')
-  WITH CHECK (get_user_role(auth.uid()) = 'admin');
-
-CREATE POLICY "Allow users to view their own profile" ON profiles
-  FOR SELECT
-  USING (auth.uid() = id);
-
--- Groups Policies
-CREATE POLICY "Allow admins to manage groups" ON groups
-  FOR ALL
-  USING (get_user_role(auth.uid()) = 'admin')
-  WITH CHECK (get_user_role(auth.uid()) = 'admin');
-
--- User Groups Policies
-CREATE POLICY "Allow admins to manage user_groups" ON user_groups
-  FOR ALL
-  USING (get_user_role(auth.uid()) = 'admin')
-  WITH CHECK (get_user_role(auth.uid()) = 'admin');
-
--- Tests Policies
-CREATE POLICY "Allow admins to manage tests" ON tests
-  FOR ALL
-  USING (get_user_role(auth.uid()) = 'admin')
-  WITH CHECK (get_user_role(auth.uid()) = 'admin');
+  left join
+    user_groups ug on g.id = ug.group_id
+  group by
+    g.id;
+end;
+$$ language plpgsql;
