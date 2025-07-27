@@ -29,7 +29,6 @@ export async function getProfileByUserId(userId: string) {
 export async function deleteUser(userId: string) {
     const supabase = createClient();
     // We need to use the service role key to delete users from auth.users
-    // This is a simplified example. In a real app, you'd want to handle this with more care.
     const { data, error } = await supabase.auth.admin.deleteUser(userId);
     return { data, error };
 }
@@ -44,7 +43,7 @@ export async function createUserWithProfile(userData: any) {
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email: userData.email,
         password: userData.password,
-        email_confirm: true, // Or false if you want to send a confirmation email
+        email_confirm: true, 
     });
 
     if (authError) return { data: null, error: authError };
@@ -67,7 +66,9 @@ export async function createUserWithProfile(userData: any) {
 
 export async function resetPasswordForUser(email: string) {
     const supabase = createClient();
-    return supabase.auth.resetPasswordForEmail(email);
+    return supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: '/update-password'
+    });
 }
 
 
