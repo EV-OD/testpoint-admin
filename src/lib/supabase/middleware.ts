@@ -54,21 +54,9 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const { data: { session }} = await supabase.auth.getSession()
-  
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!session && request.nextUrl.pathname !== '/login') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
-  }
-
-  if (session && request.nextUrl.pathname === '/login') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/'
-      return NextResponse.redirect(url)
-  }
+  // This is a placeholder as we are not using Supabase auth.
+  // The actual session management is handled by iron-session in the middleware.
+  await supabase.auth.getSession()
 
   return response
 }

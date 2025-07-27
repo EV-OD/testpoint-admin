@@ -1,40 +1,29 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import type { User as AuthUser } from '@supabase/supabase-js';
 import type { User } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { createClient } from '@/lib/supabase/client';
 
-type Profile = User & { email: string };
+type Profile = Omit<User, 'password'>;
 
 export function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const supabase = createClient();
 
   useEffect(() => {
     const fetchProfile = async () => {
       setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (user) {
-            const { data: profileData, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', user.id)
-                .single();
-            
-            if (error) throw error;
-            
-            setProfile({ ...profileData, email: user.email! });
-
+        const response = await fetch('/api/auth/session');
+        const data = await response.json();
+        
+        if (data.isLoggedIn) {
+            setProfile(data.user);
         } else {
              toast({ title: 'Error', description: 'You are not logged in.', variant: 'destructive' });
         }
@@ -46,9 +35,10 @@ export function ProfilePage() {
     };
 
     fetchProfile();
-  }, [toast, supabase]);
+  }, [toast]);
 
   const getInitials = (name: string) => {
+    if (!name) return '';
     const names = name.split(' ');
     if (names.length > 1) {
       return `${names[0][0]}${names[names.length - 1][0]}`;

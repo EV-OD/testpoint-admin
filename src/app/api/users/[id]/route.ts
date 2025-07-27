@@ -1,56 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
-
-
-async function getAdminSupabase() {
-    const cookieStore = cookies();
-    const supabase = createClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'admin') {
-        return null;
-    }
-    
-    // Use the admin client for elevated privileges
-    return createAdminClient();
-}
+import sql from '@/lib/db';
 
 
 // PUT (update) a user
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-    const supabase = await getAdminSupabase();
-    if (!supabase) {
-        return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    }
-
     const { id } = params;
     try {
         const { name, role } = await req.json();
         
-        const { data: updatedProfile, error } = await supabase
-            .from('profiles')
-            .update({ name, role })
-            .eq('id', id)
-            .select('id, name, role')
-            .single();
+        const result = await sql`
+            UPDATE profiles 
+            SET name = ${name}, role = ${role} 
+            WHERE id = ${id}
+            RETURNING id, name, email, role
+        `;
 
-        if (error) throw error;
-
-        if (!updatedProfile) {
+        if (result.length === 0) {
             return NextResponse.json({ message: 'User not found' }, { status: 404 });
         }
 
-        // Also fetch the email from the auth.users table
-        const { data: { user: authUser }, error: userError } = await supabase.auth.admin.getUserById(id);
-        if(userError) throw userError;
-        
-        const email = authUser?.email || '';
-
-        return NextResponse.json({ ...updatedProfile, email }, { status: 200 });
+        return NextResponse.json(result[0], { status: 200 });
 
     } catch (error: any) {
         console.error('Error updating user:', error);
@@ -60,16 +29,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 // DELETE a user
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-    const supabase = await getAdminSupabase();
-    if (!supabase) {
-        return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    }
     const { id } = params;
     try {
-        const { error } = await supabase.auth.admin.deleteUser(id, true); // true to soft delete, false to hard delete
+        const result = await sql`DELETE FROM profiles WHERE id = ${id}`;
 
-        if (error) {
-             throw error;
+        if (result.count === 0) {
+             return NextResponse.json({ message: 'User not found' }, { status: 404 });
         }
 
         return new NextResponse(null, { status: 204 }); // No Content

@@ -16,9 +16,8 @@ export const sessionOptions: IronSessionOptions = {
 };
 
 // This is where we specify the session data that we want to store.
-// We are only storing the user object, so we can extend the IronSessionData type.
 declare module 'iron-session' {
   interface IronSessionData {
-    user?: User;
+    user?: Omit<User, 'password'>;
   }
 }

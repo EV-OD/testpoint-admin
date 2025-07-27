@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { UserForm } from './UserForm';
 import { useToast } from '@/hooks/use-toast';
+import { getUsersWithGroups } from '@/lib/supabase/queries';
 
 type UserWithGroups = User & { groups: { name: string }[] };
 
@@ -20,15 +21,12 @@ export function UserManagement() {
   const { toast } = useToast();
 
   const fetchUsers = useCallback(async () => {
-    try {
-      const response = await fetch('/api/users');
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
-      const data = await response.json();
-      setUsers(data);
-    } catch(error) {
+    const { data, error } = await getUsersWithGroups();
+    if(error) {
       toast({ title: "Error fetching users", description: (error as Error).message, variant: "destructive" });
+    } else {
+      // @ts-ignore
+      setUsers(data);
     }
   }, [toast]);
 

@@ -1,9 +1,9 @@
 export type User = {
-  id: string; // This will correspond to the auth.users.id
+  id: string; 
   name: string;
   email: string;
   role: 'teacher' | 'student' | 'admin';
-  password?: string; // Only for creation/update, should not be stored long-term
+  password?: string; // Hashed password from DB or plain text for creation
 };
 
 export type Group = {
