@@ -3,6 +3,7 @@ export type User = {
   name: string;
   email: string;
   role: 'teacher' | 'student' | 'admin';
+  password?: string; // Only for creation/update, should not be stored long-term
 };
 
 export type Group = {

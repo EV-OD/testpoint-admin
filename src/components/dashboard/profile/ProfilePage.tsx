@@ -2,46 +2,47 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import type { User } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getProfileByUserId } from '@/lib/supabase/queries';
 import { useToast } from '@/hooks/use-toast';
 
 export function ProfilePage() {
   const [profile, setProfile] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
   const { toast } = useToast();
 
   useEffect(() => {
     const fetchProfile = async () => {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        const { data: profileData, error } = await getProfileByUserId(user.id);
-        if (error) {
-          toast({ title: 'Error fetching profile', description: error.message, variant: 'destructive' });
-        } else {
-          setProfile(profileData);
+      try {
+        const res = await fetch('/api/auth/session');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.isLoggedIn) {
+            setProfile(data.user);
+          } else {
+             toast({ title: 'Error', description: 'You are not logged in.', variant: 'destructive' });
+          }
         }
+      } catch (error) {
+        toast({ title: 'Error fetching profile', description: (error as Error).message, variant: 'destructive' });
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchProfile();
-  }, [supabase, toast]);
+  }, [toast]);
 
   const getInitials = (name: string) => {
     const names = name.split(' ');
     if (names.length > 1) {
       return `${names[0][0]}${names[names.length - 1][0]}`;
     }
-    return names[0][0] || '';
+    return names[0]?.[0] || '';
   };
 
   const getRoleBadgeVariant = (role: User['role']): 'default' | 'secondary' | 'destructive' => {

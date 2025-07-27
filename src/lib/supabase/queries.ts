@@ -1,175 +1,126 @@
 "use server";
 
-import { createClient as createServerClient } from "@/lib/supabase/server";
-import { createClient } from "@supabase/supabase-js";
-import type { User, Group, Test } from "@/lib/types";
+import sql from '@/lib/db';
+import type { Test, Group } from "@/lib/types";
+import { unstable_noStore as noStore } from 'next/cache';
 
-// This admin client is used for operations requiring service_role permissions.
-// It should only be used in server-side code.
-const createAdminClient = () => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey) {
-        throw new Error("Supabase URL or Service Role Key is not defined");
-    }
-
-    return createClient(supabaseUrl, serviceRoleKey, {
-         auth: {
-            autoRefreshToken: false,
-            persistSession: false
-         }
-    });
-};
-
+// NOTE: All data fetching is now done via the Next.js API routes,
+// but these server-side query functions are kept here as they can
+// be used directly by Server Components if needed in the future.
+// The API routes themselves use the `sql` template tag directly.
 
 // USER QUERIES
 export async function getUsersWithGroups() {
-  const supabase = createServerClient();
-  return supabase.from("profiles").select(`
-    id,
-    name,
-    email,
-    role,
-    groups ( name )
-  `);
+  noStore();
+  return sql`
+    SELECT p.id, p.name, p.email, p.role, 
+           COALESCE(json_agg(json_build_object('name', g.name)) FILTER (WHERE g.id IS NOT NULL), '[]') as groups
+    FROM profiles p
+    LEFT JOIN user_groups ug ON p.id = ug.user_id
+    LEFT JOIN groups g ON ug.group_id = g.id
+    GROUP BY p.id
+  `;
 }
 
 export async function getUsers() {
-  const supabase = createServerClient();
-  return supabase.from("profiles").select(`id, name, role`);
+    noStore();
+    return sql`SELECT id, name, role FROM profiles`;
 }
 
 export async function getProfileByUserId(userId: string) {
-    const supabase = createServerClient();
-    return supabase.from('profiles').select('*').eq('id', userId).single();
+    noStore();
+    const [profile] = await sql`SELECT id, name, email, role FROM profiles WHERE id = ${userId}`;
+    return profile;
 }
-
-
-export async function deleteUser(userId: string) {
-    const supabaseAdmin = createAdminClient();
-    const { data, error } = await supabaseAdmin.auth.admin.deleteUser(userId);
-    return { data, error };
-}
-
-export async function upsertUser(user: Partial<User>) {
-    const supabase = createServerClient();
-    return supabase.from('profiles').upsert({ id: user.id!, name: user.name!, role: user.role!, email: user.email! }).select().single();
-}
-
-export async function createUserWithProfile(userData: any) {
-    const supabaseAdmin = createAdminClient();
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: userData.email,
-        password: userData.password,
-        email_confirm: true,
-    });
-
-    if (authError) return { data: null, error: authError };
-
-    if (authData.user) {
-        // Use the admin client to insert the profile, bypassing RLS.
-        const { error: profileError } = await supabaseAdmin.from('profiles').insert({
-            id: authData.user.id,
-            name: userData.name,
-            email: userData.email,
-            role: userData.role,
-        });
-
-        if (profileError) {
-             // If profile creation fails, we must delete the auth user to prevent orphans.
-             await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-             return { data: null, error: profileError };
-        }
-    }
-    return { data: authData, error: null };
-}
-
-export async function resetPasswordForUser(email: string) {
-    const supabase = createServerClient();
-    return supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: '/update-password'
-    });
-}
-
 
 // GROUP QUERIES
 export async function getGroupsWithMemberCount() {
-    const supabase = createServerClient();
-    return supabase.rpc('get_groups_with_member_count');
+    noStore();
+    return sql`
+        SELECT 
+            g.id, 
+            g.name, 
+            CAST(COUNT(ug.user_id) AS INTEGER) as member_count 
+        FROM groups g 
+        LEFT JOIN user_groups ug ON g.id = ug.group_id 
+        GROUP BY g.id, g.name
+    `;
 }
 
 export async function getGroups() {
-    const supabase = createServerClient();
-    return supabase.from('groups').select('*');
+    noStore();
+    return sql`SELECT * FROM groups`;
 }
 
 export async function getGroupWithMembers(groupId: string) {
-    const supabase = createServerClient();
-    const { data, error } = await supabase.from('groups').select(`*, user_groups(user_id)`).eq('id', groupId).single();
-    if(error) return { data: null, error };
+    noStore();
+    const [group] = await sql`SELECT * FROM groups WHERE id = ${groupId}`;
+    if (!group) return null;
 
-    if (!data) {
-        return { data: null, error: { message: "Group not found", details: "", hint: "", code: "404" } };
-    }
+    const members = await sql`SELECT user_id FROM user_groups WHERE group_id = ${groupId}`;
+    const userIds = members.map((m: any) => m.user_id);
     
-    const userIds = data.user_groups.map((ug: any) => ug.user_id);
-    // We need to remove the user_groups from the returned data
-    // to match the expected type.
-    const { user_groups, ...rest } = data;
-    return { data: { ...rest, userIds }, error: null };
+    return { ...group, userIds };
 }
 
 export async function deleteGroup(groupId: string) {
-    const supabase = createServerClient();
-    // First, delete related user_groups entries
-    await supabase.from('user_groups').delete().eq('group_id', groupId);
-    return supabase.from('groups').delete().eq('id', groupId);
+    noStore();
+    await sql.begin(async sql => {
+        await sql`DELETE FROM user_groups WHERE group_id = ${groupId}`;
+        await sql`DELETE FROM tests WHERE group_id = ${groupId}`;
+        await sql`DELETE FROM groups WHERE id = ${groupId}`;
+    });
+    return { error: null };
 }
 
 export async function upsertGroup(groupData: { id?: string; name: string; userIds: string[] }) {
-    const supabase = createServerClient();
+    noStore();
     const { id, name, userIds } = groupData;
-
-    // Upsert group details
-    const { data: group, error: groupError } = await supabase.from('groups').upsert({ id: id, name: name }).select().single();
-    if (groupError) return { error: groupError };
-
-    const groupId = group.id;
-
-    // Clear existing members
-    const { error: deleteError } = await supabase.from('user_groups').delete().eq('group_id', groupId);
-    if(deleteError) return { error: deleteError };
     
-    // Add new members
-    if (userIds.length > 0) {
-      const userGroupRelations = userIds.map(userId => ({ group_id: groupId, user_id: userId }));
-      const { error: insertError } = await supabase.from('user_groups').insert(userGroupRelations);
-      return { error: insertError };
-    }
+    await sql.begin(async (sql) => {
+        let groupId = id;
+        if (id) {
+            await sql`UPDATE groups SET name = ${name} WHERE id = ${id}`;
+        } else {
+            const [newGroup] = await sql`INSERT INTO groups (name) VALUES (${name}) RETURNING id`;
+            groupId = newGroup.id;
+        }
 
+        await sql`DELETE FROM user_groups WHERE group_id = ${groupId}`;
+
+        if (userIds && userIds.length > 0) {
+            const relations = userIds.map(userId => ({ group_id: groupId, user_id: userId }));
+            await sql`INSERT INTO user_groups ${sql(relations, 'group_id', 'user_id')}`;
+        }
+    });
     return { error: null };
 }
 
 // TEST QUERIES
 export async function getTests() {
-    const supabase = createServerClient();
-    return supabase.from('tests').select(`
-        *,
-        groups ( name )
-    `);
+    noStore();
+    return sql`
+        SELECT t.*, row_to_json(g.*) as groups 
+        FROM tests t 
+        LEFT JOIN groups g ON t.group_id = g.id
+    `;
 }
 
 export async function deleteTest(testId: string) {
-    const supabase = createServerClient();
-    return supabase.from('tests').delete().eq('id', testId);
+    noStore();
+    await sql`DELETE FROM tests WHERE id = ${testId}`;
+    return { error: null };
 }
 
-export async function upsertTest(testData: Omit<Test, 'id'> & { id?: string }) {
-     const supabase = createServerClient();
-    const testPayload = {
-        ...testData,
-        date_time: new Date(testData.date_time).toISOString(),
-    };
-    return supabase.from('tests').upsert(testPayload);
+export async function upsertTest(testData: Omit<Test, 'id' | 'groups'> & { id?: string }) {
+    noStore();
+    const { id, name, group_id, time_limit, question_count, date_time } = testData;
+    const isoDateTime = new Date(date_time).toISOString();
+
+    if (id) {
+        await sql`UPDATE tests SET name = ${name}, group_id = ${group_id}, time_limit = ${time_limit}, question_count = ${question_count}, date_time = ${isoDateTime} WHERE id = ${id}`;
+    } else {
+        await sql`INSERT INTO tests (name, group_id, time_limit, question_count, date_time) VALUES (${name}, ${group_id}, ${time_limit}, ${question_count}, ${isoDateTime})`;
+    }
+    return { error: null };
 }

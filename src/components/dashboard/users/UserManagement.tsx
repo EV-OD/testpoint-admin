@@ -8,27 +8,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Trash2, Edit, KeyRound } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { UserForm } from './UserForm';
-import { PasswordResetDialog } from './PasswordResetDialog';
 import { useToast } from '@/hooks/use-toast';
-import { getUsersWithGroups, deleteUser, upsertUser, resetPasswordForUser, createUserWithProfile } from '@/lib/supabase/queries';
 
 type UserWithGroups = User & { groups: { name: string }[] };
 
 export function UserManagement() {
   const [users, setUsers] = useState<UserWithGroups[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
   const { toast } = useToast();
 
   const fetchUsers = useCallback(async () => {
-    const { data, error } = await getUsersWithGroups();
-    if (error) {
-      toast({ title: "Error fetching users", description: error.message, variant: "destructive" });
-    } else {
-      setUsers(data || []);
+    try {
+      const response = await fetch('/api/users');
+      if (!response.ok) throw new Error('Failed to fetch users');
+      const data = await response.json();
+      setUsers(data);
+    } catch(error) {
+      toast({ title: "Error fetching users", description: (error as Error).message, variant: "destructive" });
     }
   }, [toast]);
 
@@ -47,50 +46,41 @@ export function UserManagement() {
   };
 
   const handleDelete = async (userId: string) => {
-    const { error } = await deleteUser(userId);
-    if (error) {
-        toast({ title: "Error deleting user", description: error.message, variant: "destructive" });
-    } else {
-        toast({ title: "User Deleted", description: "The user has been successfully deleted.", variant: "destructive" });
-        fetchUsers();
+    try {
+      const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to delete user');
+      }
+      toast({ title: "User Deleted", description: "The user has been successfully deleted.", variant: "destructive" });
+      fetchUsers();
+    } catch (error) {
+      toast({ title: "Error deleting user", description: (error as Error).message, variant: "destructive" });
     }
-  };
-
-  const handleResetPassword = (user: User) => {
-    setSelectedUser(user);
-    setIsResetDialogOpen(true);
-  };
-
-  const confirmResetPassword = async () => {
-    if (!selectedUser) return;
-    
-    const { error } = await resetPasswordForUser(selectedUser.email);
-    if(error){
-        toast({ title: "Password Reset Failed", description: error.message, variant: "destructive" });
-    } else {
-        toast({ title: "Password Reset", description: `A password reset link has been sent to ${selectedUser.email}.` });
-    }
-    setIsResetDialogOpen(false);
-    setSelectedUser(undefined);
   };
 
   const handleSaveUser = async (userData: any) => {
-    if (userData.id) { // Existing user
-      const { error } = await upsertUser({ id: userData.id, name: userData.name, role: userData.role, email: userData.email });
-      if (error) {
-        toast({ title: "Error updating user", description: error.message, variant: "destructive" });
-      } else {
-        toast({ title: "User Updated", description: "The user details have been successfully updated." });
+    const isEditing = !!userData.id;
+    const url = isEditing ? `/api/users/${userData.id}` : '/api/users';
+    const method = isEditing ? 'PUT' : 'POST';
+
+    try {
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData),
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || `Failed to ${isEditing ? 'update' : 'create'} user`);
+        }
+        
+        toast({ title: isEditing ? "User Updated" : "User Created", description: `The user has been successfully ${isEditing ? 'updated' : 'created'}.`});
         fetchUsers();
-      }
-    } else { // New user
-      const { error } = await createUserWithProfile(userData);
-      if (error) {
-         toast({ title: "Error creating user", description: error.message, variant: "destructive" });
-      } else {
-         toast({ title: "User Created", description: "A new user has been successfully created." });
-         fetchUsers();
-      }
+
+    } catch(error) {
+        toast({ title: `Error ${isEditing ? 'updating' : 'creating'} user`, description: (error as Error).message, variant: "destructive" });
     }
     
     setIsFormOpen(false);
@@ -158,10 +148,6 @@ export function UserManagement() {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleResetPassword(user)}>
-                            <KeyRound className="mr-2 h-4 w-4" />
-                            Reset Password
-                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(user.id)}>
                             <Trash2 className="mr-2 h-4 w-4" />
@@ -182,13 +168,6 @@ export function UserManagement() {
           user={selectedUser}
           onSave={handleSaveUser}
           onClose={() => setIsFormOpen(false)}
-        />
-      )}
-      {isResetDialogOpen && selectedUser && (
-        <PasswordResetDialog
-          user={selectedUser}
-          onConfirm={confirmResetPassword}
-          onCancel={() => setIsResetDialogOpen(false)}
         />
       )}
     </>

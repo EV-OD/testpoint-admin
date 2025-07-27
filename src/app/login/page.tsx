@@ -1,52 +1,42 @@
 "use client";
 
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Cpu } from 'lucide-react';
-import { getProfileByUserId } from '@/lib/supabase/queries';
+import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('rabin@ieee.org');
+  const [password, setPassword] = useState('12345678');
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const supabase = createClient();
+  const { toast } = useToast();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    const { data: { user: authUser }, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
     });
 
-    if (signInError) {
-      setError(signInError.message);
-      return;
-    }
-
-    if (authUser) {
-      const { data: profile, error: profileError } = await getProfileByUserId(authUser.id);
-
-      if (profileError) {
-        await supabase.auth.signOut();
-        setError(profileError.message);
-        return;
-      }
-      
-      if (profile && profile.role === 'admin') {
+    if (response.ok) {
         router.push('/');
-        router.refresh();
-      } else {
-        await supabase.auth.signOut();
-        setError('Access denied. Only admins can log in.');
-      }
+        router.refresh(); // Important to re-fetch server component data
+    } else {
+        const data = await response.json();
+        setError(data.message || 'An unexpected error occurred.');
+        toast({
+            title: 'Login Failed',
+            description: data.message || 'Please check your credentials and try again.',
+            variant: 'destructive',
+        });
     }
   };
 
