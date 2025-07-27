@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -73,7 +74,7 @@ export function UserManagement() {
     setSelectedUser(undefined);
   };
 
-  const getRoleBadgeVariant = (role: User['role']) => {
+  const getRoleBadgeVariant = (role: User['role']): 'default' | 'secondary' | 'destructive' => {
     switch (role) {
       case 'admin':
         return 'destructive';
@@ -86,8 +87,8 @@ export function UserManagement() {
 
   return (
     <>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+      <Card className="shadow-none border-0">
+        <CardHeader className="flex flex-row items-center justify-between px-0">
           <div>
             <CardTitle>User Accounts</CardTitle>
             <CardDescription>Manage all user accounts in the system.</CardDescription>
@@ -97,8 +98,8 @@ export function UserManagement() {
             Add New User
           </Button>
         </CardHeader>
-        <CardContent>
-          <div className="border rounded-lg">
+        <CardContent className="p-0">
+          <div className="border rounded-lg bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
