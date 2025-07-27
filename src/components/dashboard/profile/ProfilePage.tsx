@@ -1,31 +1,42 @@
-
 "use client";
 
 import { useEffect, useState } from 'react';
+import type { User as AuthUser } from '@supabase/supabase-js';
 import type { User } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { createClient } from '@/lib/supabase/client';
+
+type Profile = User & { email: string };
 
 export function ProfilePage() {
-  const [profile, setProfile] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const supabase = createClient();
 
   useEffect(() => {
     const fetchProfile = async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/auth/session');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.isLoggedIn) {
-            setProfile(data.user);
-          } else {
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (user) {
+            const { data: profileData, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+            
+            if (error) throw error;
+            
+            setProfile({ ...profileData, email: user.email! });
+
+        } else {
              toast({ title: 'Error', description: 'You are not logged in.', variant: 'destructive' });
-          }
         }
       } catch (error) {
         toast({ title: 'Error fetching profile', description: (error as Error).message, variant: 'destructive' });
@@ -35,7 +46,7 @@ export function ProfilePage() {
     };
 
     fetchProfile();
-  }, [toast]);
+  }, [toast, supabase]);
 
   const getInitials = (name: string) => {
     const names = name.split(' ');

@@ -1,10 +1,10 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Users, Group as GroupIcon, FileText, Cpu, User, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 type View = 'users' | 'groups' | 'tests' | 'profile';
 
@@ -15,6 +15,7 @@ interface DashboardSidebarProps {
 
 export default function DashboardSidebar({ activeView, setActiveView }: DashboardSidebarProps) {
     const router = useRouter();
+    const supabase = createClient();
 
     const menuItems = [
         { id: 'users', label: 'User Management', icon: Users },
@@ -23,7 +24,7 @@ export default function DashboardSidebar({ activeView, setActiveView }: Dashboar
     ];
 
     const handleLogout = async () => {
-        await fetch('/api/auth/logout', { method: 'POST' });
+        await supabase.auth.signOut();
         router.push('/login');
         router.refresh();
     };

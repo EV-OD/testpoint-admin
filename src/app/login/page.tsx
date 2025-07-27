@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Cpu } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('rabin@ieee.org');
@@ -15,28 +16,27 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
 
-    if (response.ok) {
-        router.push('/');
-        router.refresh(); // Important to re-fetch server component data
+    if (error) {
+      setError(error.message);
+      toast({
+        title: 'Login Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
     } else {
-        const data = await response.json();
-        setError(data.message || 'An unexpected error occurred.');
-        toast({
-            title: 'Login Failed',
-            description: data.message || 'Please check your credentials and try again.',
-            variant: 'destructive',
-        });
+      // The middleware will redirect to the home page on success
+      router.refresh();
     }
   };
 
