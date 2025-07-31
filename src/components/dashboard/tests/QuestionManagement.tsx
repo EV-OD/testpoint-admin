@@ -85,7 +85,7 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
       const savedQuestion = await response.json();
       
       // Replace temporary question with the one from the server
-      setQuestions(prev => prev.map(q => q.id === tempId ? savedQuestion : q));
+      setQuestions(prev => prev.map(q => q.id === tempId ? { ...q, id: savedQuestion.id } : q));
       toast({ title: 'Success', description: 'New question added.' });
 
     } catch (error: any) {
@@ -101,7 +101,6 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
 
   const handleDeleteQuestion = async (questionId: string) => {
     const originalQuestions = [...questions];
-    const questionToDelete = originalQuestions.find(q => q.id === questionId);
     
     // Optimistically remove the question from the UI
     setQuestions(prev => prev.filter(q => q.id !== questionId));
