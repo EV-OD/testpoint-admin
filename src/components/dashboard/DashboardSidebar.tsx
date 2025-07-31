@@ -16,10 +16,14 @@ export default function DashboardSidebar({ activeView, setActiveView }: Dashboar
     const router = useRouter();
 
     const menuItems = [
-        { id: 'users', label: 'User Management', icon: Users },
-        { id: 'groups', label: 'Group Management', icon: GroupIcon },
-        { id: 'tests', label: 'Test Management', icon: FileText },
+        { id: 'users', label: 'User Management', icon: Users, path: '/dashboard' },
+        { id: 'groups', label: 'Group Management', icon: GroupIcon, path: '/dashboard' },
+        { id: 'tests', label: 'Test Management', icon: FileText, path: '/dashboard' },
     ];
+
+    const handleNavigate = (view: View) => {
+        setActiveView(view);
+    };
 
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST' });
@@ -40,7 +44,7 @@ export default function DashboardSidebar({ activeView, setActiveView }: Dashboar
                         <li key={item.id}>
                             <Button
                                 variant="ghost"
-                                onClick={() => setActiveView(item.id as View)}
+                                onClick={() => handleNavigate(item.id as View)}
                                 className={cn(
                                     "w-full justify-start text-base py-6",
                                     activeView === item.id 
@@ -57,7 +61,7 @@ export default function DashboardSidebar({ activeView, setActiveView }: Dashboar
                 <div>
                      <Button
                         variant="ghost"
-                        onClick={() => setActiveView('profile')}
+                        onClick={() => handleNavigate('profile')}
                         className={cn(
                             "w-full justify-start text-base py-6",
                             activeView === 'profile'

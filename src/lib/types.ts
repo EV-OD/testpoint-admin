@@ -21,3 +21,15 @@ export type Test = {
   question_count: number;
   date_time: string; // ISO 8601 format
 };
+
+export type Option = {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+};
+
+export type Question = {
+  id: string;
+  text: string;
+  options: Option[];
+};

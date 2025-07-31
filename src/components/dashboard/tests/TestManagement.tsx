@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Edit, FileQuestion } from 'lucide-react';
 import { TestForm } from './TestForm';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useRouter } from 'next/navigation';
 
 
 type TestWithGroup = Test & { groups: { name: string } | null };
@@ -22,6 +23,7 @@ export function TestManagement() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<Test | undefined>(undefined);
   const { toast } = useToast();
+  const router = useRouter();
 
   const fetchTests = useCallback(async () => {
     setLoading(true);
@@ -58,9 +60,13 @@ export function TestManagement() {
     setIsFormOpen(true);
   };
 
-  const handleEdit = (test: Test) => {
+  const handleEditDetails = (test: Test) => {
     setSelectedTest(test);
     setIsFormOpen(true);
+  };
+
+  const handleViewQuestions = (testId: string) => {
+    router.push(`/dashboard/tests/${testId}`);
   };
   
   const handleDelete = async (testId: string) => {
@@ -89,14 +95,18 @@ export function TestManagement() {
             body: JSON.stringify(testData),
         });
 
+        const data = await response.json();
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || `Failed to ${isEditing ? 'update' : 'create'} test.`);
+            throw new Error(data.message || `Failed to ${isEditing ? 'update' : 'create'} test.`);
         }
         toast({ title: 'Success', description: `Test successfully ${isEditing ? 'updated' : 'created'}.`});
         setIsFormOpen(false);
         setSelectedTest(undefined);
-        fetchTests();
+        if (!isEditing) {
+          router.push(`/dashboard/tests/${data.id}`);
+        } else {
+          fetchTests();
+        }
     } catch (error: any) {
         toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
@@ -138,7 +148,7 @@ export function TestManagement() {
                         </TableCell>
                     </TableRow>
                 ) : tests.map((test) => (
-                  <TableRow key={test.id}>
+                  <TableRow key={test.id} className="cursor-pointer" onClick={() => handleViewQuestions(test.id)}>
                     <TableCell className="font-medium">{test.name}</TableCell>
                     <TableCell className="hidden md:table-cell text-muted-foreground">{test.groups?.name || 'N/A'}</TableCell>
                     <TableCell className="hidden sm:table-cell text-muted-foreground">{format(new Date(test.date_time), 'PPp')}</TableCell>
@@ -147,16 +157,20 @@ export function TestManagement() {
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
+                          <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
                             <span className="sr-only">Open menu</span>
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleEdit(test)}>
+                           <DropdownMenuItem onClick={() => handleViewQuestions(test.id)}>
+                            <FileQuestion className="mr-2 h-4 w-4" />
+                            View/Edit Questions
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEditDetails(test)}>
                             <Edit className="mr-2 h-4 w-4" />
-                            Edit
+                            Edit Details
                           </DropdownMenuItem>
                            <AlertDialog>
                               <AlertDialogTrigger asChild>
@@ -169,7 +183,7 @@ export function TestManagement() {
                                   <AlertDialogHeader>
                                   <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                      This action cannot be undone. This will permanently delete this test.
+                                      This action cannot be undone. This will permanently delete this test and all its questions.
                                   </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
