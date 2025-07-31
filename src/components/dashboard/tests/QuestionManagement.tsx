@@ -52,17 +52,28 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
     fetchQuestions();
   }, [fetchTestDetails, fetchQuestions]);
   
-  const handleAddQuestion = async () => {
+ const handleAddQuestion = async () => {
+    // Create a temporary question for optimistic UI update
+    const tempId = `temp-${Date.now()}`;
+    const newQuestion: Question = {
+      id: tempId,
+      text: 'New Question',
+      options: [
+        { id: '1', text: 'Option 1', isCorrect: true },
+        { id: '2', text: 'Option 2', isCorrect: false },
+      ],
+    };
+
+    // Optimistically update the UI
+    setQuestions(prev => [...prev, newQuestion]);
+
     try {
       const response = await fetch(`/api/tests/${testId}/questions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            text: 'New Question',
-            options: [
-                { id: '1', text: 'Option 1', isCorrect: true },
-                { id: '2', text: 'Option 2', isCorrect: false },
-            ]
+          text: newQuestion.text,
+          options: newQuestion.options,
         }),
       });
 
@@ -70,11 +81,17 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to create question.');
       }
-      const newQuestion = await response.json();
-      setQuestions(prev => [...prev, newQuestion]);
+      
+      const savedQuestion = await response.json();
+      
+      // Replace temporary question with the one from the server
+      setQuestions(prev => prev.map(q => q.id === tempId ? savedQuestion : q));
       toast({ title: 'Success', description: 'New question added.' });
+
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      // Rollback: remove the temporary question if the API call fails
+      setQuestions(prev => prev.filter(q => q.id !== tempId));
     }
   };
 
@@ -83,18 +100,26 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
   }
 
   const handleDeleteQuestion = async (questionId: string) => {
+    const originalQuestions = [...questions];
+    const questionToDelete = originalQuestions.find(q => q.id === questionId);
+    
+    // Optimistically remove the question from the UI
+    setQuestions(prev => prev.filter(q => q.id !== questionId));
+
     try {
       const response = await fetch(`/api/tests/${testId}/questions/${questionId}`, { method: 'DELETE' });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to delete question');
       }
-      setQuestions(prev => prev.filter(q => q.id !== questionId));
       toast({ title: 'Success', description: 'Question deleted successfully.' });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      // Rollback: re-add the question if the API call fails
+      setQuestions(originalQuestions);
     }
   };
+
 
   return (
     <>
