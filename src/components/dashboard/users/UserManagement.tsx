@@ -23,16 +23,16 @@ export function UserManagement() {
     setLoading(true);
     try {
       const response = await fetch('/api/users');
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch users');
+      }
       setUsers(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       toast({
         title: 'Error',
-        description: 'Could not fetch users.',
+        description: error.message || 'Could not fetch users.',
         variant: 'destructive',
       });
     } finally {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type { User } from '@/lib/types';
+import admin from 'firebase-admin';
 
 export async function GET() {
   try {
@@ -20,7 +21,6 @@ export async function GET() {
         });
     }
     
-
     const users: User[] = authUsers.map(userRecord => {
         const firestoreUser = usersMap.get(userRecord.uid);
         return {
