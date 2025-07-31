@@ -28,8 +28,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   try {
     const { name, userIds } = await request.json();
 
-    if (!id || !name || !userIds) {
-        return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
+    if (!id || !name || !Array.isArray(userIds)) {
+        return NextResponse.json({ message: 'Missing or invalid required fields' }, { status: 400 });
     }
 
     await adminDb.collection('groups').doc(id).update({

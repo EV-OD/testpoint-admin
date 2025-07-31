@@ -5,8 +5,8 @@ export async function POST(request: Request) {
   try {
     const { name, userIds } = await request.json();
 
-    if (!name || !userIds) {
-      return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
+    if (!name || !Array.isArray(userIds)) {
+      return NextResponse.json({ message: 'Missing or invalid required fields' }, { status: 400 });
     }
 
     const groupRef = await adminDb.collection('groups').add({
