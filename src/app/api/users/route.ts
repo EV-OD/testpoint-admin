@@ -5,22 +5,29 @@ import type { User } from '@/lib/types';
 export async function GET() {
   try {
     const listUsersResult = await adminAuth.listUsers();
-    const userRecords = listUsersResult.users;
+    const authUsers = listUsersResult.users;
 
-    const usersQuerySnapshot = await adminDb.collection('users').get();
-    const usersMap = new Map();
-    usersQuerySnapshot.forEach(doc => {
-        const data = doc.data();
-        usersMap.set(data.email, { id: doc.id, ...data });
-    });
+    const userIds = authUsers.map(user => user.uid);
+    const usersCollection = adminDb.collection('users');
+    const usersMap = new Map<string, any>();
 
-    const users: User[] = userRecords.map(userRecord => {
-        const firestoreUser = usersMap.get(userRecord.email);
+    // Firestore `where in` query has a limit of 30 equality clauses.
+    // If you have more than 30 users, this will need to be chunked.
+    if (userIds.length > 0) {
+        const usersQuerySnapshot = await usersCollection.where(admin.firestore.FieldPath.documentId(), 'in', userIds).get();
+        usersQuerySnapshot.forEach(doc => {
+            usersMap.set(doc.id, doc.data());
+        });
+    }
+    
+
+    const users: User[] = authUsers.map(userRecord => {
+        const firestoreUser = usersMap.get(userRecord.uid);
         return {
             id: userRecord.uid,
             name: userRecord.displayName || firestoreUser?.name || 'N/A',
             email: userRecord.email || '',
-            role: firestoreUser?.role || 'student',
+            role: firestoreUser?.role || 'student', // Default role if not in firestore
         };
     });
 
@@ -45,6 +52,7 @@ export async function POST(request: Request) {
       displayName: name,
     });
 
+    // We use the user's UID as the document ID in Firestore.
     await adminDb.collection('users').doc(userRecord.uid).set({
       name,
       email,
@@ -52,7 +60,8 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ id: userRecord.uid, name, email, role }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: any)
+    {
     console.error('Error creating user:', error);
      if (error.code === 'auth/email-already-exists') {
       return NextResponse.json({ message: 'Email is already in use by another account.' }, { status: 409 });
