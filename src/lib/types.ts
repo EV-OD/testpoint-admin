@@ -1,9 +1,11 @@
+
 export type User = {
   id: string; 
   name: string;
   email: string;
   role: 'teacher' | 'student' | 'admin';
   password?: string; // Hashed password from DB or plain text for creation
+  groups?: string[];
 };
 
 export type Group = {

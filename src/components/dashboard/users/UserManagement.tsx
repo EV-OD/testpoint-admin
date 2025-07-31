@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -174,7 +175,7 @@ export function UserManagement() {
                       <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">{user.role}</Badge>
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-muted-foreground">
-                      {/* Placeholder for groups */}
+                      {user.groups && user.groups.length > 0 ? user.groups.join(', ') : 'N/A'}
                     </TableCell>
                     <TableCell className="text-right">
                        <DropdownMenu>

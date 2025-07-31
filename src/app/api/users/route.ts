@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type { User } from '@/lib/types';
@@ -9,18 +10,15 @@ export async function GET() {
     const authUsers = listUsersResult.users;
 
     const userIds = authUsers.map(user => user.uid);
+    
+    // Fetch user roles from Firestore 'users' collection
     const usersCollection = adminDb.collection('users');
     const usersMap = new Map<string, any>();
-
-    // Firestore `where in` query has a limit of 30 equality clauses.
-    // If you have more than 30 users, this will need to be chunked.
     if (userIds.length > 0) {
-      // Split userIds into chunks of 30
       const chunks = [];
       for (let i = 0; i < userIds.length; i += 30) {
         chunks.push(userIds.slice(i, i + 30));
       }
-
       for (const chunk of chunks) {
         if (chunk.length > 0) {
             const usersQuerySnapshot = await usersCollection.where(admin.firestore.FieldPath.documentId(), 'in', chunk).get();
@@ -30,6 +28,21 @@ export async function GET() {
         }
       }
     }
+
+    // Fetch groups to map users to groups
+    const groupsSnapshot = await adminDb.collection('groups').get();
+    const userGroupsMap = new Map<string, string[]>();
+    groupsSnapshot.forEach(doc => {
+        const group = doc.data();
+        if (Array.isArray(group.userIds)) {
+            group.userIds.forEach((userId: string) => {
+                if (!userGroupsMap.has(userId)) {
+                    userGroupsMap.set(userId, []);
+                }
+                userGroupsMap.get(userId)?.push(group.name);
+            });
+        }
+    });
     
     const users: User[] = authUsers.map(userRecord => {
         const firestoreUser = usersMap.get(userRecord.uid);
@@ -37,7 +50,8 @@ export async function GET() {
             id: userRecord.uid,
             name: userRecord.displayName || firestoreUser?.name || 'N/A',
             email: userRecord.email || '',
-            role: firestoreUser?.role || 'student', // Default role if not in firestore
+            role: firestoreUser?.role || 'student',
+            groups: userGroupsMap.get(userRecord.uid) || [],
         };
     });
 
@@ -62,7 +76,6 @@ export async function POST(request: Request) {
       displayName: name,
     });
 
-    // We use the user's UID as the document ID in Firestore.
     await adminDb.collection('users').doc(userRecord.uid).set({
       name,
       email,
