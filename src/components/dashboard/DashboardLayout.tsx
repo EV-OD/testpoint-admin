@@ -20,11 +20,11 @@ export function DashboardLayout({ children, activeView, setActiveView }: Dashboa
   }
 
   return (
-    <div className="flex min-h-screen w-full">
+    <div className="flex h-screen w-full overflow-hidden">
       <DashboardSidebar activeView={activeView} setActiveView={handleViewChange} />
       <div className="flex flex-col w-full">
         <Header />
-        <main className="flex-grow p-4 md:p-6 lg:p-8 bg-background">
+        <main className="flex-grow p-4 md:p-6 lg:p-8 bg-background overflow-y-auto">
           {children}
         </main>
       </div>
