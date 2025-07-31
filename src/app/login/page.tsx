@@ -43,10 +43,15 @@ export default function LoginPage() {
       }
 
     } catch (error: any) {
-      console.error("Firebase Auth Error:", error);
+      console.error("Firebase Auth Error:", error.code);
+      let description = 'An unknown error occurred.';
+      if (error.code === 'auth/invalid-credential') {
+        description = 'Invalid email or password. Please try again.';
+      }
+      
       toast({
         title: 'Login Failed',
-        description: error.message || 'An unknown error occurred.',
+        description: description,
         variant: 'destructive',
       });
     } finally {
