@@ -13,10 +13,12 @@ import { UserForm } from './UserForm';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
   const [isGroupsModalOpen, setIsGroupsModalOpen] = useState(false);
@@ -24,7 +26,7 @@ export function UserManagement() {
   const { toast } = useToast();
 
   const fetchUsers = useCallback(async () => {
-    setLoading(true);
+    if (!loading) setLoading(true);
     try {
       const response = await fetch('/api/users');
       const data = await response.json();
@@ -42,11 +44,11 @@ export function UserManagement() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, loading]);
 
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
+  }, []);
 
   const handleAddNew = () => {
     setSelectedUser(undefined);
@@ -85,6 +87,7 @@ export function UserManagement() {
   };
 
   const handleSaveUser = async (userData: Partial<User>) => {
+    setIsSubmitting(true);
     const isEditing = !!userData.id;
     const url = isEditing ? `/api/users/${userData.id}` : '/api/users';
     const method = isEditing ? 'PUT' : 'POST';
@@ -110,7 +113,7 @@ export function UserManagement() {
       
       setIsFormOpen(false);
       setSelectedUser(undefined);
-      fetchUsers(); // Refresh the list
+      await fetchUsers(); // Refresh the list
     } catch (error: any) {
       console.error(error);
       toast({
@@ -118,6 +121,8 @@ export function UserManagement() {
         description: error.message || `Could not ${isEditing ? 'update' : 'create'} user.`,
         variant: 'destructive',
       });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -152,6 +157,16 @@ export function UserManagement() {
     return user.groups!.join(', ');
   }
 
+  const renderSkeleton = () => (
+    <TableRow>
+        <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+        <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-40" /></TableCell>
+        <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+        <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
+        <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+    </TableRow>
+  );
+
   return (
     <>
       <Card>
@@ -179,72 +194,73 @@ export function UserManagement() {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                    <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center">
-                        Loading users...
-                        </TableCell>
-                    </TableRow>
-                ) : users.length === 0 ? (
+                    Array.from({ length: 3 }).map((_, i) => renderSkeleton())
+                ) : users.length === 0 && !isSubmitting ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
                       No users found.
                     </TableCell>
                   </TableRow>
-                ) : users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell className="hidden md:table-cell text-muted-foreground">{user.email}</TableCell>
-                    <TableCell>
-                      <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">{user.role}</Badge>
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell text-muted-foreground">
-                       {renderGroupsCell(user)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleEdit(user)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                               <Button variant="ghost" className="w-full justify-start text-sm text-destructive hover:text-destructive p-2 m-0 h-full">
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                               </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This action cannot be undone. This will permanently delete the user account and remove their data from our servers.
-                                </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={() => handleDelete(user.id)}
-                                    className="bg-destructive hover:bg-destructive/90"
-                                >
-                                    Delete User
-                                </AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                ) : (
+                    <>
+                    {isSubmitting && renderSkeleton()}
+                    {users.map((user) => (
+                    <TableRow key={user.id}>
+                        <TableCell className="font-medium">{user.name}</TableCell>
+                        <TableCell className="hidden md:table-cell text-muted-foreground">{user.email}</TableCell>
+                        <TableCell>
+                        <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">{user.role}</Badge>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell text-muted-foreground">
+                        {renderGroupsCell(user)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => handleEdit(user)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                <Button variant="ghost" className="w-full justify-start text-sm text-destructive hover:text-destructive p-2 m-0 h-full">
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete
+                                </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete the user account and remove their data from our servers.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={() => handleDelete(user.id)}
+                                        className="bg-destructive hover:bg-destructive/90"
+                                    >
+                                        Delete User
+                                    </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        </TableCell>
+                    </TableRow>
+                    ))}
+                    </>
+                )}
               </TableBody>
             </Table>
           </div>

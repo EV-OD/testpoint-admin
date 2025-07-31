@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -12,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useRouter } from 'next/navigation';
-
+import { Skeleton } from '@/components/ui/skeleton';
 
 type TestWithGroup = Test & { groups: { name: string } | null };
 
@@ -20,13 +21,16 @@ export function TestManagement() {
   const [tests, setTests] = useState<TestWithGroup[]>([]);
   const [allGroups, setAllGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<Test | undefined>(undefined);
   const { toast } = useToast();
   const router = useRouter();
 
   const fetchTests = useCallback(async () => {
-    setLoading(true);
+    if (tests.length === 0) {
+        setLoading(true);
+    }
     try {
       const response = await fetch('/api/tests');
       const data = await response.json();
@@ -37,7 +41,7 @@ export function TestManagement() {
     } finally {
         setLoading(false);
     }
-  }, [toast]);
+  }, [toast, tests.length]);
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -53,7 +57,7 @@ export function TestManagement() {
   useEffect(() => {
     fetchTests();
     fetchGroups();
-  }, [fetchTests, fetchGroups]);
+  }, []);
 
   const handleAddNew = () => {
     setSelectedTest(undefined);
@@ -84,6 +88,7 @@ export function TestManagement() {
   };
 
   const handleSaveTest = async (testData: Omit<Test, 'id'> & { id?: string }) => {
+    setIsSubmitting(true);
     const isEditing = !!testData.id;
     const url = isEditing ? `/api/tests/${testData.id}` : '/api/tests';
     const method = isEditing ? 'PUT' : 'POST';
@@ -103,14 +108,28 @@ export function TestManagement() {
         setIsFormOpen(false);
         setSelectedTest(undefined);
         if (!isEditing) {
+          // No need to re-fetch, just go to the new page. The new page will fetch the data itself.
           router.push(`/dashboard/tests/${data.id}`);
         } else {
-          fetchTests();
+          await fetchTests();
         }
     } catch (error: any) {
         toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
     }
   };
+
+  const renderSkeleton = () => (
+     <TableRow>
+        <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+        <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-24" /></TableCell>
+        <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-40" /></TableCell>
+        <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
+        <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
+        <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+    </TableRow>
+  );
 
   return (
     <>
@@ -140,68 +159,73 @@ export function TestManagement() {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                    <TableRow><TableCell colSpan={6} className="h-24 text-center">Loading tests...</TableCell></TableRow>
-                ) : tests.length === 0 ? (
+                    Array.from({ length: 3 }).map((_, i) => renderSkeleton())
+                ) : tests.length === 0 && !isSubmitting ? (
                     <TableRow>
                         <TableCell colSpan={6} className="h-24 text-center">
                         No tests found. Create one to get started.
                         </TableCell>
                     </TableRow>
-                ) : tests.map((test) => (
-                  <TableRow key={test.id} className="cursor-pointer" onClick={() => handleViewQuestions(test.id)}>
-                    <TableCell className="font-medium">{test.name}</TableCell>
-                    <TableCell className="hidden md:table-cell text-muted-foreground">{test.groups?.name || 'N/A'}</TableCell>
-                    <TableCell className="hidden sm:table-cell text-muted-foreground">{format(new Date(test.date_time), 'PPp')}</TableCell>
-                    <TableCell className="hidden lg:table-cell text-muted-foreground">{test.time_limit} mins</TableCell>
-                    <TableCell className="hidden lg:table-cell text-muted-foreground">{test.question_count}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                           <DropdownMenuItem onClick={() => handleViewQuestions(test.id)}>
-                            <FileQuestion className="mr-2 h-4 w-4" />
-                            View/Edit Questions
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleEditDetails(test)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit Details
-                          </DropdownMenuItem>
-                           <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                 <Button variant="ghost" className="w-full justify-start text-sm text-destructive hover:text-destructive p-2 m-0 h-full">
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
-                                 </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                      This action cannot be undone. This will permanently delete this test and all its questions.
-                                  </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                      onClick={() => handleDelete(test.id)}
-                                      className="bg-destructive hover:bg-destructive/90"
-                                  >
-                                      Delete Test
-                                  </AlertDialogAction>
-                                  </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                ) : (
+                    <>
+                    {isSubmitting && !isFormOpen && renderSkeleton()}
+                    {tests.map((test) => (
+                    <TableRow key={test.id} className="cursor-pointer" onClick={() => handleViewQuestions(test.id)}>
+                        <TableCell className="font-medium">{test.name}</TableCell>
+                        <TableCell className="hidden md:table-cell text-muted-foreground">{test.groups?.name || 'N/A'}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-muted-foreground">{format(new Date(test.date_time), 'PPp')}</TableCell>
+                        <TableCell className="hidden lg:table-cell text-muted-foreground">{test.time_limit} mins</TableCell>
+                        <TableCell className="hidden lg:table-cell text-muted-foreground">{test.question_count}</TableCell>
+                        <TableCell className="text-right">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => handleViewQuestions(test.id)}>
+                                <FileQuestion className="mr-2 h-4 w-4" />
+                                View/Edit Questions
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditDetails(test)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Details
+                            </DropdownMenuItem>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" className="w-full justify-start text-sm text-destructive hover:text-destructive p-2 m-0 h-full">
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete this test and all its questions.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={() => handleDelete(test.id)}
+                                        className="bg-destructive hover:bg-destructive/90"
+                                    >
+                                        Delete Test
+                                    </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                                </AlertDialog>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        </TableCell>
+                    </TableRow>
+                    ))}
+                    </>
+                )}
               </TableBody>
             </Table>
           </div>
