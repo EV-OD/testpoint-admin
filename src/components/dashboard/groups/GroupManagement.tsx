@@ -9,25 +9,43 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { GroupForm } from './GroupForm';
 import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 type GroupWithMemberCount = Group & { member_count: number };
 
 export function GroupManagement() {
   const [groups, setGroups] = useState<GroupWithMemberCount[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState< (Group & { userIds: string[] }) | undefined>(undefined);
   const { toast } = useToast();
 
   const fetchGroups = useCallback(async () => {
-     console.log("Fetching groups...");
-     setGroups([]);
-  }, []);
+    setLoading(true);
+    try {
+      const response = await fetch('/api/groups');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to fetch groups');
+      setGroups(data);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   const fetchUsers = useCallback(async () => {
-    console.log("Fetching users...");
-    setAllUsers([]);
-  }, []);
+    try {
+      const response = await fetch('/api/users');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to fetch users');
+      const studentsAndTeachers = data.filter((u: User) => u.role === 'student' || u.role === 'teacher');
+      setAllUsers(studentsAndTeachers);
+    } catch (error: any) {
+      toast({ title: 'Error fetching users', description: error.message, variant: 'destructive' });
+    }
+  }, [toast]);
 
   useEffect(() => {
     fetchGroups();
@@ -40,17 +58,54 @@ export function GroupManagement() {
   };
 
   const handleEdit = async (group: Group) => {
-    toast({ title: "Note", description: "Edit functionality will be implemented with Firestore." });
+    try {
+      const response = await fetch(`/api/groups/${group.id}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to fetch group details');
+      setSelectedGroup(data);
+      setIsFormOpen(true);
+    } catch (error: any) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
   };
   
   const handleDelete = async (groupId: string) => {
-     toast({ title: "Note", description: "Delete functionality will be implemented with Firestore." });
+     try {
+        const response = await fetch(`/api/groups/${groupId}`, { method: 'DELETE' });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to delete group');
+        }
+        toast({ title: 'Success', description: 'Group deleted successfully.' });
+        fetchGroups();
+     } catch (error: any) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+     }
   };
 
   const handleSaveGroup = async (groupData: {id?: string; name: string, userIds: string[]}) => {
-    toast({ title: "Note", description: "Save functionality will be implemented with Firestore." });
-    setIsFormOpen(false);
-    setSelectedGroup(undefined);
+    const isEditing = !!groupData.id;
+    const url = isEditing ? `/api/groups/${groupData.id}` : '/api/groups';
+    const method = isEditing ? 'PUT' : 'POST';
+
+    try {
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(groupData),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `Failed to ${isEditing ? 'update' : 'create'} group.`);
+        }
+        toast({ title: 'Success', description: `Group successfully ${isEditing ? 'updated' : 'created'}.`});
+        setIsFormOpen(false);
+        setSelectedGroup(undefined);
+        fetchGroups();
+    } catch (error: any) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
   };
 
   return (
@@ -59,7 +114,7 @@ export function GroupManagement() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Groups</CardTitle>
-            <CardDescription>Create and manage user groups for tests. (Firestore backend pending)</CardDescription>
+            <CardDescription>Create and manage user groups for tests.</CardDescription>
           </div>
           <Button onClick={handleAddNew}>
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -77,10 +132,12 @@ export function GroupManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {groups.length === 0 ? (
+                {loading ? (
+                  <TableRow><TableCell colSpan={3} className="h-24 text-center">Loading groups...</TableCell></TableRow>
+                ) : groups.length === 0 ? (
                     <TableRow>
                         <TableCell colSpan={3} className="h-24 text-center">
-                        No groups found. Firestore integration is pending.
+                        No groups found. Create one to get started.
                         </TableCell>
                     </TableRow>
                 ) : groups.map((group) => (
@@ -101,10 +158,31 @@ export function GroupManagement() {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(group.id)}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
+                           <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                 <Button variant="ghost" className="w-full justify-start text-sm text-destructive hover:text-destructive p-2 m-0 h-full">
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                 </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                      This action cannot be undone. This will permanently delete the group.
+                                  </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                      onClick={() => handleDelete(group.id)}
+                                      className="bg-destructive hover:bg-destructive/90"
+                                  >
+                                      Delete Group
+                                  </AlertDialogAction>
+                                  </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
