@@ -9,13 +9,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { GroupForm } from './GroupForm';
 import { useToast } from '@/hooks/use-toast';
-import {
-  getGroupsWithMemberCount,
-  deleteGroup,
-  upsertGroup,
-  getUsers,
-  getGroupWithMembers,
-} from '@/lib/supabase/queries';
 
 type GroupWithMemberCount = Group & { member_count: number };
 
@@ -27,22 +20,14 @@ export function GroupManagement() {
   const { toast } = useToast();
 
   const fetchGroups = useCallback(async () => {
-    const { data, error } = await getGroupsWithMemberCount();
-    if (error) {
-      toast({ title: "Error fetching groups", description: error.message, variant: "destructive" });
-    } else {
-      setGroups(data || []);
-    }
-  }, [toast]);
+     console.log("Fetching groups...");
+     setGroups([]);
+  }, []);
 
   const fetchUsers = useCallback(async () => {
-    const { data, error } = await getUsers();
-    if (error) {
-      toast({ title: "Error fetching users", description: error.message, variant: "destructive" });
-    } else {
-      setAllUsers(data || []);
-    }
-  }, [toast]);
+    console.log("Fetching users...");
+    setAllUsers([]);
+  }, []);
 
   useEffect(() => {
     fetchGroups();
@@ -55,33 +40,15 @@ export function GroupManagement() {
   };
 
   const handleEdit = async (group: Group) => {
-    const { data, error } = await getGroupWithMembers(group.id);
-    if(error){
-      toast({ title: "Error fetching group details", description: error.message, variant: "destructive" });
-      return;
-    }
-    setSelectedGroup(data);
-    setIsFormOpen(true);
+    toast({ title: "Note", description: "Edit functionality will be implemented with Firestore." });
   };
   
   const handleDelete = async (groupId: string) => {
-    const { error } = await deleteGroup(groupId);
-    if (error) {
-      toast({ title: "Error deleting group", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Group Deleted", description: "The group has been successfully deleted.", variant: "destructive" });
-      fetchGroups();
-    }
+     toast({ title: "Note", description: "Delete functionality will be implemented with Firestore." });
   };
 
   const handleSaveGroup = async (groupData: {id?: string; name: string, userIds: string[]}) => {
-    const { error } = await upsertGroup(groupData);
-    if (error) {
-      toast({ title: "Error saving group", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: groupData.id ? "Group Updated" : "Group Created", description: `The group has been successfully ${groupData.id ? 'updated' : 'created'}.` });
-      fetchGroups();
-    }
+    toast({ title: "Note", description: "Save functionality will be implemented with Firestore." });
     setIsFormOpen(false);
     setSelectedGroup(undefined);
   };
@@ -92,7 +59,7 @@ export function GroupManagement() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Groups</CardTitle>
-            <CardDescription>Create and manage user groups for tests.</CardDescription>
+            <CardDescription>Create and manage user groups for tests. (Firestore backend pending)</CardDescription>
           </div>
           <Button onClick={handleAddNew}>
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -110,7 +77,13 @@ export function GroupManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {groups.map((group) => (
+                {groups.length === 0 ? (
+                    <TableRow>
+                        <TableCell colSpan={3} className="h-24 text-center">
+                        No groups found. Firestore integration is pending.
+                        </TableCell>
+                    </TableRow>
+                ) : groups.map((group) => (
                   <TableRow key={group.id}>
                     <TableCell className="font-medium">{group.name}</TableCell>
                     <TableCell>{group.member_count}</TableCell>

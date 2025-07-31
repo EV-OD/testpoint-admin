@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { UserForm } from './UserForm';
 import { useToast } from '@/hooks/use-toast';
-import { getUsersWithGroups } from '@/lib/supabase/queries';
 
 type UserWithGroups = User & { groups: { name: string }[] };
 
@@ -21,14 +20,11 @@ export function UserManagement() {
   const { toast } = useToast();
 
   const fetchUsers = useCallback(async () => {
-    const { data, error } = await getUsersWithGroups();
-    if(error) {
-      toast({ title: "Error fetching users", description: (error as Error).message, variant: "destructive" });
-    } else {
-      // @ts-ignore
-      setUsers(data);
-    }
-  }, [toast]);
+    // This will be implemented once Firestore is set up.
+    console.log("Fetching users...");
+    // For now, we'll use dummy data.
+    setUsers([]);
+  }, []);
 
   useEffect(() => {
     fetchUsers();
@@ -45,42 +41,12 @@ export function UserManagement() {
   };
 
   const handleDelete = async (userId: string) => {
-    try {
-       const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
-       if (!response.ok) {
-         const errorData = await response.json();
-         throw new Error(errorData.message || 'Failed to delete user');
-       }
-        toast({ title: "User Deleted", description: "The user has been successfully deleted.", variant: 'destructive' });
-        fetchUsers();
-    } catch (error) {
-      toast({ title: "Error deleting user", description: (error as Error).message, variant: "destructive" });
-    }
+    toast({ title: "Note", description: "Delete functionality will be implemented with Firestore." });
   };
 
   const handleSaveUser = async (userData: any) => {
     const isEditing = !!userData.id;
-    const url = isEditing ? `/api/users/${userData.id}` : '/api/users';
-    const method = isEditing ? 'PUT' : 'POST';
-
-    try {
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to ${isEditing ? 'update' : 'create'} user`);
-      }
-        
-      toast({ title: isEditing ? "User Updated" : "User Created", description: `The user has been successfully ${isEditing ? 'updated' : 'created'}.`});
-      fetchUsers();
-
-    } catch(error) {
-        toast({ title: `Error ${isEditing ? 'updating' : 'creating'} user`, description: (error as Error).message, variant: "destructive" });
-    }
+    toast({ title: "Note", description: "Save functionality will be implemented with Firestore." });
     
     setIsFormOpen(false);
     setSelectedUser(undefined);
@@ -103,7 +69,7 @@ export function UserManagement() {
         <CardHeader className="flex flex-row items-center justify-between px-0">
           <div>
             <CardTitle>User Accounts</CardTitle>
-            <CardDescription>Manage all user accounts in the system.</CardDescription>
+            <CardDescription>Manage all user accounts in the system. (Firestore backend pending)</CardDescription>
           </div>
           <Button onClick={handleAddNew}>
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -123,7 +89,13 @@ export function UserManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
+                {users.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                      No users found. Firestore integration is pending.
+                    </TableCell>
+                  </TableRow>
+                ) : users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell className="hidden md:table-cell text-muted-foreground">{user.email}</TableCell>

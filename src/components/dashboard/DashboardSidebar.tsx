@@ -24,7 +24,6 @@ export default function DashboardSidebar({ activeView, setActiveView }: Dashboar
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST' });
         router.push('/login');
-        router.refresh();
     };
 
     return (

@@ -7,37 +7,34 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-
-type Profile = Omit<User, 'password'>;
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 export function ProfilePage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<Partial<User> | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch('/api/auth/session');
-        const data = await response.json();
-        
-        if (data.isLoggedIn) {
-            setProfile(data.user);
-        } else {
-             toast({ title: 'Error', description: 'You are not logged in.', variant: 'destructive' });
-        }
-      } catch (error) {
-        toast({ title: 'Error fetching profile', description: (error as Error).message, variant: 'destructive' });
-      } finally {
-        setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // In a real app, you would fetch profile data from Firestore
+        // using the user.uid
+        setProfile({
+          name: user.displayName || 'Admin User',
+          email: user.email || 'No email found',
+          role: 'admin', // Role would come from Firestore
+        });
+      } else {
+        setProfile(null);
       }
-    };
+      setLoading(false);
+    });
 
-    fetchProfile();
+    return () => unsubscribe();
   }, [toast]);
 
-  const getInitials = (name: string) => {
+  const getInitials = (name?: string) => {
     if (!name) return '';
     const names = name.split(' ');
     if (names.length > 1) {
@@ -100,9 +97,11 @@ export function ProfilePage() {
         <div>
           <h2 className="text-2xl font-bold">{profile.name}</h2>
           <p className="text-muted-foreground">{profile.email}</p>
-          <Badge variant={getRoleBadgeVariant(profile.role)} className="capitalize mt-2 text-sm">
-            {profile.role}
-          </Badge>
+          {profile.role && (
+            <Badge variant={getRoleBadgeVariant(profile.role)} className="capitalize mt-2 text-sm">
+              {profile.role}
+            </Badge>
+          )}
         </div>
       </CardContent>
     </Card>
