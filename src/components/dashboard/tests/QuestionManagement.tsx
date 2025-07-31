@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Question, Test } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, ArrowLeft } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, CheckCircle, Edit } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
-import { QuestionItem } from './QuestionItem';
+import { QuestionItem, type SaveStatus } from './QuestionItem';
 
 interface QuestionManagementProps {
   testId: string;
@@ -18,13 +18,12 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
   const [test, setTest] = useState<Test | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
+  const [questionStatuses, setQuestionStatuses] = useState<Record<string, SaveStatus>>({});
   const { toast } = useToast();
   const router = useRouter();
 
   const fetchTestDetails = useCallback(async () => {
     try {
-        // This endpoint doesn't exist yet, but we can fetch the test details
-        // from the main tests endpoint and find the one with the matching id.
         const res = await fetch(`/api/tests`);
         const tests = await res.json();
         if (!res.ok) throw new Error(tests.message || 'Failed to fetch test details');
@@ -44,6 +43,12 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Failed to fetch questions');
       setQuestions(data);
+      // Initialize all statuses as saved
+      const initialStatuses: Record<string, SaveStatus> = {};
+      data.forEach((q: Question) => {
+        initialStatuses[q.id] = 'saved';
+      });
+      setQuestionStatuses(initialStatuses);
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
@@ -72,6 +77,8 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
     };
 
     setQuestions(prev => [...prev, optimisticQuestion]);
+    setQuestionStatuses(prev => ({ ...prev, [tempId]: 'saving' }));
+
 
     try {
       const response = await fetch(`/api/tests/${testId}/questions`, {
@@ -87,18 +94,28 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
       
       const savedQuestion = await response.json();
       
-      setQuestions(prev => prev.map(q => q.id === tempId ? { ...savedQuestion, text: newQuestionData.text, options: newQuestionData.options } : q));
-      toast({ title: 'Success', description: 'New question added.' });
+      setQuestions(prev => prev.map(q => q.id === tempId ? savedQuestion : q));
+      setQuestionStatuses(prev => {
+        const newStatuses = { ...prev };
+        delete newStatuses[tempId];
+        newStatuses[savedQuestion.id] = 'saved';
+        return newStatuses;
+      });
 
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
       setQuestions(prev => prev.filter(q => q.id !== tempId));
+      setQuestionStatuses(prev => {
+        const newStatuses = { ...prev };
+        delete newStatuses[tempId];
+        return newStatuses;
+      });
     }
   };
 
-  const handleUpdateQuestion = (updatedQuestion: Question) => {
-    setQuestions(prev => prev.map(q => q.id === updatedQuestion.id ? updatedQuestion : q));
-  }
+  const handleQuestionStatusChange = (questionId: string, status: SaveStatus) => {
+    setQuestionStatuses(prev => ({ ...prev, [questionId]: status }));
+  };
 
   const handleDeleteQuestion = async (questionId: string) => {
     const originalQuestions = [...questions];
@@ -118,16 +135,44 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
     }
   };
 
+  const globalSaveStatus = useMemo(() => {
+    const statuses = Object.values(questionStatuses);
+    if (statuses.some(s => s === 'saving')) return 'saving';
+    if (statuses.some(s => s === 'dirty')) return 'dirty';
+    if (statuses.every(s => s === 'saved')) return 'all_saved';
+    return 'idle';
+  }, [questionStatuses]);
+
+  const renderGlobalStatus = () => {
+    switch(globalSaveStatus) {
+        case 'saving':
+            return <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/><span>Saving...</span></div>;
+        case 'dirty':
+            return <div className="flex items-center gap-2 text-muted-foreground"><Edit className="h-4 w-4"/><span>Unsaved changes</span></div>;
+        case 'all_saved':
+            if (questions.length > 0) {
+               return <div className="flex items-center gap-2 text-green-600"><CheckCircle className="h-4 w-4"/><span>All changes saved</span></div>;
+            }
+            return null; // Don't show anything if there are no questions
+        default:
+            return <div className="h-6"></div>; // Placeholder
+    }
+  }
 
   return (
     <>
-      <div className="flex items-center gap-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.push('/dashboard?view=tests')}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Manage Questions</h1>
-          <div className="text-muted-foreground">For test: {test?.name || <Skeleton className="h-5 w-32 inline-block" />}</div>
+      <div className="flex items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" onClick={() => router.push('/dashboard?view=tests')}>
+            <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+                <h1 className="text-2xl font-bold">Manage Questions</h1>
+                <div className="text-muted-foreground">For test: {test?.name || <Skeleton className="h-5 w-32 inline-block" />}</div>
+            </div>
+        </div>
+        <div className="text-sm">
+            {renderGlobalStatus()}
         </div>
       </div>
 
@@ -141,8 +186,8 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
               testId={testId}
               question={q}
               questionNumber={index + 1}
-              onUpdate={handleUpdateQuestion}
               onDelete={handleDeleteQuestion}
+              onStatusChange={handleQuestionStatusChange}
             />
           ))
         )}

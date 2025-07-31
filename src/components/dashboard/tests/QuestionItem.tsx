@@ -4,11 +4,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { Question, Option } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { PlusCircle, X, Trash2, Check, Loader2 } from 'lucide-react';
+import { PlusCircle, X, Trash2, Loader2, CheckCircle, Circle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
@@ -29,25 +29,29 @@ function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
 }
 
 
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'dirty';
 interface QuestionItemProps {
   testId: string;
   question: Question;
   questionNumber: number;
-  onUpdate: (question: Question) => void;
   onDelete: (questionId: string) => void;
+  onStatusChange: (questionId: string, status: SaveStatus) => void;
 }
 
-type SaveStatus = 'idle' | 'saving' | 'saved';
-
-export function QuestionItem({ testId, question, questionNumber, onUpdate, onDelete }: QuestionItemProps) {
+export function QuestionItem({ testId, question, questionNumber, onDelete, onStatusChange }: QuestionItemProps) {
   const [localQuestion, setLocalQuestion] = useState<Question>(question);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const { toast } = useToast();
+
+   const updateStatus = (status: SaveStatus) => {
+    setSaveStatus(status);
+    onStatusChange(question.id, status);
+  };
 
   const debouncedSave = useMemo(
     () =>
       debounce(async (updatedQuestion: Question) => {
-        setSaveStatus('saving');
+        updateStatus('saving');
         try {
           const response = await fetch(`/api/tests/${testId}/questions/${updatedQuestion.id}`, {
             method: 'PUT',
@@ -61,133 +65,104 @@ export function QuestionItem({ testId, question, questionNumber, onUpdate, onDel
             const errorData = await response.json();
             throw new Error(errorData.message || 'Failed to save changes.');
           }
-          setSaveStatus('saved');
-          setTimeout(() => setSaveStatus('idle'), 2000); // Reset after 2s
+          updateStatus('saved');
         } catch (error: any) {
           toast({ title: 'Error', description: `Could not save question: ${error.message}`, variant: 'destructive' });
-          setSaveStatus('idle');
+          updateStatus('dirty'); // Revert to dirty on error
         }
-      }, 1500), // 1.5 second debounce delay
-    [testId, toast]
+      }, 1500),
+    [testId, toast, onStatusChange, question.id]
   );
 
-  // When parent component's question changes, update local state
   useEffect(() => {
-    // Only update local state if the incoming question is different
-    // This avoids overwriting user input.
+    // Only update local state if the incoming question is truly different
+    // This check is important to prevent overwriting user input, especially during initial hydration
     if (JSON.stringify(localQuestion) !== JSON.stringify(question)) {
        setLocalQuestion(question);
+       // When props change, we assume it's saved unless told otherwise.
+       updateStatus('saved');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question]);
 
-  // When local state changes, trigger a debounced save
-  useEffect(() => {
-    // Only save if the question has actually changed from the prop.
-    if (JSON.stringify(localQuestion) !== JSON.stringify(question)) {
-      debouncedSave(localQuestion);
-    }
-  }, [localQuestion, question, debouncedSave]);
+  const handleLocalChange = (newQuestion: Question) => {
+    setLocalQuestion(newQuestion);
+    updateStatus('dirty');
+    debouncedSave(newQuestion);
+  };
   
   const handleQuestionTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newQuestion = { ...localQuestion, text: e.target.value };
-    setLocalQuestion(newQuestion);
-    onUpdate(newQuestion);
+    handleLocalChange({ ...localQuestion, text: e.target.value });
   };
   
   const handleOptionTextChange = (optionId: string, text: string) => {
     const newOptions = localQuestion.options.map(opt => (opt.id === optionId ? { ...opt, text } : opt));
-    const newQuestion = { ...localQuestion, options: newOptions };
-    setLocalQuestion(newQuestion);
-    onUpdate(newQuestion);
+    handleLocalChange({ ...localQuestion, options: newOptions });
   };
   
   const handleCorrectOptionChange = (correctOptionId: string) => {
     const newOptions = localQuestion.options.map(opt => ({ ...opt, isCorrect: opt.id === correctOptionId }));
-    const newQuestion = { ...localQuestion, options: newOptions };
-    setLocalQuestion(newQuestion);
-    onUpdate(newQuestion);
+    handleLocalChange({ ...localQuestion, options: newOptions });
   };
   
   const handleAddOption = () => {
-    // create a temporary id for the option
-    const tempOptionId = `temp-${Date.now()}`;
     const newOption: Option = {
-      id: tempOptionId, 
+      id: `temp-${Date.now()}`, 
       text: '',
-      isCorrect: localQuestion.options.length === 0, // Make first option correct by default
+      isCorrect: localQuestion.options.length === 0,
     };
-
     const updatedOptions = [...localQuestion.options, newOption];
-
-    // If adding the first option, make it correct. Otherwise, ensure only one is correct.
-    const newOptions = updatedOptions.map((opt, index) => ({
-      ...opt,
-      isCorrect: updatedOptions.some(o => o.isCorrect) ? opt.isCorrect : index === 0,
-      id: opt.id.startsWith('temp-') ? `${Date.now()}-${index}` : opt.id // Solidify temp id
-    }));
-
-
-    const newQuestion = { ...localQuestion, options: newOptions };
-    setLocalQuestion(newQuestion);
-    onUpdate(newQuestion);
+    handleLocalChange({ ...localQuestion, options: updatedOptions });
   };
   
   const handleRemoveOption = (optionId: string) => {
     let newOptions = localQuestion.options.filter(opt => opt.id !== optionId);
-    // If we are removing the correct option, make the first one correct if available
     if (!newOptions.some(o => o.isCorrect) && newOptions.length > 0) {
         newOptions[0].isCorrect = true;
     }
-    const newQuestion = { ...localQuestion, options: newOptions };
-    setLocalQuestion(newQuestion);
-    onUpdate(newQuestion);
+    handleLocalChange({ ...localQuestion, options: newOptions });
   };
   
   const correctOptionId = localQuestion.options.find(o => o.isCorrect)?.id;
 
-  const renderSaveStatus = () => {
+  const renderStatusIndicator = () => {
     switch (saveStatus) {
-      case 'saving':
-        return <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /><span>Saving...</span></div>;
-      case 'saved':
-        return <div className="flex items-center gap-2 text-green-600"><Check className="h-4 w-4" /><span>Saved</span></div>;
-      default:
-        return <div className="h-6"></div>; // Placeholder for alignment
+        case 'saving':
+            return <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />;
+        case 'saved':
+            return <CheckCircle className="h-4 w-4 text-green-600" />;
+        case 'dirty':
+            return <Circle className="h-4 w-4 text-foreground" />;
+        default:
+            return <Circle className="h-4 w-4 text-foreground" />;
     }
   }
 
   return (
     <Card>
       <CardHeader className="flex-row justify-between items-start">
-        <div>
-          <CardTitle className="text-lg">Question {questionNumber}</CardTitle>
-          <CardDescription className="pt-2 text-sm text-muted-foreground">
-            Changes are saved automatically.
-          </CardDescription>
-        </div>
         <div className="flex items-center gap-4">
-            {renderSaveStatus()}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                  <AlertDialogDescription>This will permanently delete this question.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => onDelete(localQuestion.id)} className="bg-destructive hover:bg-destructive/90">
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+           <CardTitle className="text-lg">Question {questionNumber}</CardTitle>
+           {renderStatusIndicator()}
         </div>
+        <AlertDialog>
+            <AlertDialogTrigger asChild>
+            <Button variant="ghost" size="icon">
+                <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>This will permanently delete this question.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => onDelete(localQuestion.id)} className="bg-destructive hover:bg-destructive/90">
+                Delete
+                </AlertDialogAction>
+            </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
       </CardHeader>
       <CardContent className="space-y-4">
         <Textarea
