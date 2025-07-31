@@ -74,15 +74,16 @@ export function QuestionItem({ testId, question, questionNumber, onUpdate, onDel
   // When parent component's question changes, update local state
   useEffect(() => {
     // Only update local state if the incoming question is different
-    // and we are not in the middle of saving. This avoids overwriting user input.
+    // This avoids overwriting user input.
     if (JSON.stringify(localQuestion) !== JSON.stringify(question)) {
        setLocalQuestion(question);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question]);
 
   // When local state changes, trigger a debounced save
   useEffect(() => {
-    // Only save if the question has actually changed.
+    // Only save if the question has actually changed from the prop.
     if (JSON.stringify(localQuestion) !== JSON.stringify(question)) {
       debouncedSave(localQuestion);
     }
@@ -109,19 +110,32 @@ export function QuestionItem({ testId, question, questionNumber, onUpdate, onDel
   };
   
   const handleAddOption = () => {
+    // create a temporary id for the option
+    const tempOptionId = `temp-${Date.now()}`;
     const newOption: Option = {
-      id: `${Date.now()}`, // Temporary unique ID
+      id: tempOptionId, 
       text: '',
-      isCorrect: false,
+      isCorrect: localQuestion.options.length === 0, // Make first option correct by default
     };
-    const newQuestion = { ...localQuestion, options: [...localQuestion.options, newOption] };
+
+    const updatedOptions = [...localQuestion.options, newOption];
+
+    // If adding the first option, make it correct. Otherwise, ensure only one is correct.
+    const newOptions = updatedOptions.map((opt, index) => ({
+      ...opt,
+      isCorrect: updatedOptions.some(o => o.isCorrect) ? opt.isCorrect : index === 0,
+      id: opt.id.startsWith('temp-') ? `${Date.now()}-${index}` : opt.id // Solidify temp id
+    }));
+
+
+    const newQuestion = { ...localQuestion, options: newOptions };
     setLocalQuestion(newQuestion);
     onUpdate(newQuestion);
   };
   
   const handleRemoveOption = (optionId: string) => {
-    const newOptions = localQuestion.options.filter(opt => opt.id !== optionId);
-    // If we are removing the correct option, make the first one correct
+    let newOptions = localQuestion.options.filter(opt => opt.id !== optionId);
+    // If we are removing the correct option, make the first one correct if available
     if (!newOptions.some(o => o.isCorrect) && newOptions.length > 0) {
         newOptions[0].isCorrect = true;
     }
@@ -139,7 +153,7 @@ export function QuestionItem({ testId, question, questionNumber, onUpdate, onDel
       case 'saved':
         return <div className="flex items-center gap-2 text-green-600"><Check className="h-4 w-4" /><span>Saved</span></div>;
       default:
-        return null;
+        return <div className="h-6"></div>; // Placeholder for alignment
     }
   }
 
@@ -194,7 +208,7 @@ export function QuestionItem({ testId, question, questionNumber, onUpdate, onDel
                   placeholder="Option text"
                   className={cn(option.isCorrect && "font-semibold")}
                 />
-                <Button variant="ghost" size="icon" onClick={() => handleRemoveOption(option.id)} disabled={localQuestion.options.length <= 2}>
+                <Button variant="ghost" size="icon" onClick={() => handleRemoveOption(option.id)} disabled={localQuestion.options.length <= 1}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
