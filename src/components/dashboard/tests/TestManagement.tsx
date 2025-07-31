@@ -10,25 +10,43 @@ import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { TestForm } from './TestForm';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 type TestWithGroup = Test & { groups: { name: string } | null };
 
 export function TestManagement() {
   const [tests, setTests] = useState<TestWithGroup[]>([]);
   const [allGroups, setAllGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<Test | undefined>(undefined);
   const { toast } = useToast();
 
   const fetchTests = useCallback(async () => {
-    console.log("Fetching tests...");
-    setTests([]);
-  }, []);
+    setLoading(true);
+    try {
+      const response = await fetch('/api/tests');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to fetch tests');
+      setTests(data);
+    } catch (error: any) {
+      toast({ title: 'Error fetching tests', description: error.message, variant: 'destructive' });
+    } finally {
+        setLoading(false);
+    }
+  }, [toast]);
 
   const fetchGroups = useCallback(async () => {
-    console.log("Fetching groups...");
-    setAllGroups([]);
-  }, []);
+    try {
+      const response = await fetch('/api/groups');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to fetch groups');
+      setAllGroups(data);
+    } catch (error: any) {
+      toast({ title: 'Error fetching groups', description: error.message, variant: 'destructive' });
+    }
+  }, [toast]);
 
   useEffect(() => {
     fetchTests();
@@ -46,13 +64,42 @@ export function TestManagement() {
   };
   
   const handleDelete = async (testId: string) => {
-    toast({ title: "Note", description: "Delete functionality will be implemented with Firestore." });
+    try {
+        const response = await fetch(`/api/tests/${testId}`, { method: 'DELETE' });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to delete test');
+        }
+        toast({ title: 'Success', description: 'Test deleted successfully.' });
+        fetchTests();
+     } catch (error: any) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+     }
   };
 
   const handleSaveTest = async (testData: Omit<Test, 'id'> & { id?: string }) => {
-    toast({ title: "Note", description: "Save functionality will be implemented with Firestore." });
-    setIsFormOpen(false);
-    setSelectedTest(undefined);
+    const isEditing = !!testData.id;
+    const url = isEditing ? `/api/tests/${testData.id}` : '/api/tests';
+    const method = isEditing ? 'PUT' : 'POST';
+
+    try {
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(testData),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `Failed to ${isEditing ? 'update' : 'create'} test.`);
+        }
+        toast({ title: 'Success', description: `Test successfully ${isEditing ? 'updated' : 'created'}.`});
+        setIsFormOpen(false);
+        setSelectedTest(undefined);
+        fetchTests();
+    } catch (error: any) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
   };
 
   return (
@@ -61,7 +108,7 @@ export function TestManagement() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Tests</CardTitle>
-            <CardDescription>Schedule and manage tests for different groups. (Firestore backend pending)</CardDescription>
+            <CardDescription>Schedule and manage tests for different groups.</CardDescription>
           </div>
           <Button onClick={handleAddNew}>
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -82,10 +129,12 @@ export function TestManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tests.length === 0 ? (
+                {loading ? (
+                    <TableRow><TableCell colSpan={6} className="h-24 text-center">Loading tests...</TableCell></TableRow>
+                ) : tests.length === 0 ? (
                     <TableRow>
                         <TableCell colSpan={6} className="h-24 text-center">
-                        No tests found. Firestore integration is pending.
+                        No tests found. Create one to get started.
                         </TableCell>
                     </TableRow>
                 ) : tests.map((test) => (
@@ -109,10 +158,31 @@ export function TestManagement() {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(test.id)}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
+                           <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                 <Button variant="ghost" className="w-full justify-start text-sm text-destructive hover:text-destructive p-2 m-0 h-full">
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                 </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                      This action cannot be undone. This will permanently delete this test.
+                                  </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                      onClick={() => handleDelete(test.id)}
+                                      className="bg-destructive hover:bg-destructive/90"
+                                  >
+                                      Delete Test
+                                  </AlertDialogAction>
+                                  </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
