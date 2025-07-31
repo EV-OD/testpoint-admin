@@ -130,8 +130,8 @@ export function UserManagement() {
 
   return (
     <>
-      <Card className="shadow-none border-0">
-        <CardHeader className="flex flex-row items-center justify-between px-0">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>User Accounts</CardTitle>
             <CardDescription>Manage all user accounts in the system.</CardDescription>
@@ -141,8 +141,8 @@ export function UserManagement() {
             Add New User
           </Button>
         </CardHeader>
-        <CardContent className="p-0">
-          <div className="border rounded-lg bg-card">
+        <CardContent>
+          <div className="border rounded-lg">
             <Table>
               <TableHeader>
                 <TableRow>
