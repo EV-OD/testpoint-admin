@@ -1,34 +1,27 @@
 
 "use client";
 
-import { useState } from 'react';
-import { UserManagement } from '@/components/dashboard/users/UserManagement';
-import { GroupManagement } from '@/components/dashboard/groups/GroupManagement';
-import { TestManagement } from '@/components/dashboard/tests/TestManagement';
-import { ProfilePage } from '@/components/dashboard/profile/ProfilePage';
-import { DashboardLayout, type View } from '@/components/dashboard/DashboardLayout';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
-  const [activeView, setActiveView] = useState<View>('users');
-  
-  const renderContent = () => {
-    switch (activeView) {
-      case 'users':
-        return <UserManagement />;
-      case 'groups':
-        return <GroupManagement />;
-      case 'tests':
-        return <TestManagement />;
-      case 'profile':
-        return <ProfilePage />;
-      default:
-        return <UserManagement />;
-    }
-  };
-
+    const router = useRouter();
   return (
-    <DashboardLayout activeView={activeView} setActiveView={setActiveView}>
-      {renderContent()}
-    </DashboardLayout>
+    <div className="flex min-h-screen w-full items-center justify-center bg-background">
+        <Card className="w-full max-w-md">
+            <CardHeader>
+                <CardTitle>Welcome to TestPoint</CardTitle>
+                <CardDescription>The application backend has been switched to Firebase. The UI will be rebuilt in the next steps.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <p className="mb-4">The previous UI components have been temporarily removed as they were connected to the old Supabase backend.</p>
+                <p>We will now build out the authentication and data management features using Firebase.</p>
+                 <Button onClick={() => router.push('/login')} className="mt-6 w-full">
+                    Go to Login Page
+                </Button>
+            </CardContent>
+        </Card>
+    </div>
   );
 }

@@ -1,26 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { getIronSession } from 'iron-session';
-import { sessionOptions } from '@/lib/session';
 
+// This is a placeholder middleware. The actual authentication logic will be added
+// once Firebase Auth is integrated.
 export async function middleware(request: NextRequest) {
-  const response = NextResponse.next();
-  const session = await getIronSession(request.cookies, sessionOptions);
-
-  const { user } = session;
-
-  const isPublicPage = request.nextUrl.pathname === '/login';
-
-  if (!user && !isPublicPage) {
-    // If not logged in and not on the login page, redirect to login
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-  
-  if (user && isPublicPage) {
-    // If logged in and on the login page, redirect to home
-    return NextResponse.redirect(new URL('/', request.url));
-  }
-
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {
