@@ -159,7 +159,7 @@ export function TestManagement() {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                    Array.from({ length: 3 }).map((_, i) => renderSkeleton())
+                    Array.from({ length: 3 }).map((_, i) => <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell></TableRow>)
                 ) : tests.length === 0 && !isSubmitting ? (
                     <TableRow>
                         <TableCell colSpan={6} className="h-24 text-center">

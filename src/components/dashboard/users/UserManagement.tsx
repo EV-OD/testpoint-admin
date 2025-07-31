@@ -26,7 +26,10 @@ export function UserManagement() {
   const { toast } = useToast();
 
   const fetchUsers = useCallback(async () => {
-    if (!loading) setLoading(true);
+    // Only set loading on initial fetch
+    if (users.length === 0) {
+        setLoading(true);
+    }
     try {
       const response = await fetch('/api/users');
       const data = await response.json();
@@ -44,7 +47,7 @@ export function UserManagement() {
     } finally {
       setLoading(false);
     }
-  }, [toast, loading]);
+  }, [toast, users.length]);
 
   useEffect(() => {
     fetchUsers();
@@ -194,7 +197,7 @@ export function UserManagement() {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                    Array.from({ length: 3 }).map((_, i) => renderSkeleton())
+                    Array.from({ length: 3 }).map((_, i) => <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell></TableRow>)
                 ) : users.length === 0 && !isSubmitting ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">

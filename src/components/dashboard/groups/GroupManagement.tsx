@@ -150,7 +150,7 @@ export function GroupManagement() {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                    Array.from({ length: 3 }).map((_, i) => renderSkeleton())
+                    Array.from({ length: 3 }).map((_, i) => <TableRow key={i}><TableCell colSpan={3}><Skeleton className="h-8 w-full" /></TableCell></TableRow>)
                 ) : groups.length === 0 && !isSubmitting ? (
                     <TableRow>
                         <TableCell colSpan={3} className="h-24 text-center">
@@ -226,4 +226,3 @@ export function GroupManagement() {
     </>
   );
 }
-
