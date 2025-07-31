@@ -15,10 +15,18 @@ export async function GET() {
     // Firestore `where in` query has a limit of 30 equality clauses.
     // If you have more than 30 users, this will need to be chunked.
     if (userIds.length > 0) {
-        const usersQuerySnapshot = await usersCollection.where(admin.firestore.FieldPath.documentId(), 'in', userIds).get();
+      // Split userIds into chunks of 30
+      const chunks = [];
+      for (let i = 0; i < userIds.length; i += 30) {
+        chunks.push(userIds.slice(i, i + 30));
+      }
+
+      for (const chunk of chunks) {
+        const usersQuerySnapshot = await usersCollection.where(admin.firestore.FieldPath.documentId(), 'in', chunk).get();
         usersQuerySnapshot.forEach(doc => {
             usersMap.set(doc.id, doc.data());
         });
+      }
     }
     
     const users: User[] = authUsers.map(userRecord => {

@@ -1,7 +1,10 @@
 import admin from 'firebase-admin';
 
-// Check if the app is already initialized to prevent errors
-if (!admin.apps.length) {
+const initializeAdmin = () => {
+  if (admin.apps.length > 0) {
+    return;
+  }
+
   try {
     if (
       !process.env.FIREBASE_PROJECT_ID ||
@@ -23,8 +26,11 @@ if (!admin.apps.length) {
     });
   } catch (error: any) {
     console.error('Firebase admin initialization error', error.stack);
+    throw new Error('Firebase admin initialization failed');
   }
-}
+};
+
+initializeAdmin();
 
 export const adminAuth = admin.auth();
 export const adminDb = admin.firestore();
