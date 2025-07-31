@@ -12,12 +12,15 @@ import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { UserForm } from './UserForm';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 export function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
+  const [isGroupsModalOpen, setIsGroupsModalOpen] = useState(false);
+  const [viewingUser, setViewingUser] = useState<User | null>(null);
   const { toast } = useToast();
 
   const fetchUsers = useCallback(async () => {
@@ -118,6 +121,11 @@ export function UserManagement() {
     }
   };
 
+  const handleViewGroups = (user: User) => {
+    setViewingUser(user);
+    setIsGroupsModalOpen(true);
+  };
+
   const getRoleBadgeVariant = (role: User['role']): 'default' | 'secondary' | 'destructive' => {
     switch (role) {
       case 'admin':
@@ -128,6 +136,21 @@ export function UserManagement() {
         return 'default';
     }
   };
+  
+  const renderGroupsCell = (user: User) => {
+    const groupCount = user.groups?.length || 0;
+    if (groupCount === 0) {
+      return 'N/A';
+    }
+    if (groupCount > 2) {
+      return (
+        <Button variant="link" className="p-0 h-auto" onClick={() => handleViewGroups(user)}>
+          {groupCount} Groups
+        </Button>
+      );
+    }
+    return user.groups!.join(', ');
+  }
 
   return (
     <>
@@ -175,7 +198,7 @@ export function UserManagement() {
                       <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">{user.role}</Badge>
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-muted-foreground">
-                      {user.groups && user.groups.length > 0 ? user.groups.join(', ') : 'N/A'}
+                       {renderGroupsCell(user)}
                     </TableCell>
                     <TableCell className="text-right">
                        <DropdownMenu>
@@ -233,6 +256,21 @@ export function UserManagement() {
           onSave={handleSaveUser}
           onClose={() => setIsFormOpen(false)}
         />
+      )}
+      {isGroupsModalOpen && viewingUser && (
+        <Dialog open={isGroupsModalOpen} onOpenChange={setIsGroupsModalOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Groups for {viewingUser.name}</DialogTitle>
+                    <DialogDescription>This user is a member of the following groups:</DialogDescription>
+                </DialogHeader>
+                <ul className="list-disc pl-5 space-y-1 max-h-60 overflow-y-auto">
+                    {viewingUser.groups?.map(groupName => (
+                        <li key={groupName}>{groupName}</li>
+                    ))}
+                </ul>
+            </DialogContent>
+        </Dialog>
       )}
     </>
   );
