@@ -87,7 +87,7 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
       
       const savedQuestion = await response.json();
       
-      setQuestions(prev => prev.map(q => q.id === tempId ? savedQuestion : q));
+      setQuestions(prev => prev.map(q => q.id === tempId ? { ...savedQuestion, text: newQuestionData.text, options: newQuestionData.options } : q));
       toast({ title: 'Success', description: 'New question added.' });
 
     } catch (error: any) {
@@ -127,7 +127,7 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
         </Button>
         <div>
           <h1 className="text-2xl font-bold">Manage Questions</h1>
-          <p className="text-muted-foreground">For test: {test?.name || <Skeleton className="h-5 w-32 inline-block" />}</p>
+          <div className="text-muted-foreground">For test: {test?.name || <Skeleton className="h-5 w-32 inline-block" />}</div>
         </div>
       </div>
 
