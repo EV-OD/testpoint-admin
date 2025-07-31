@@ -22,10 +22,12 @@ export async function GET() {
       }
 
       for (const chunk of chunks) {
-        const usersQuerySnapshot = await usersCollection.where(admin.firestore.FieldPath.documentId(), 'in', chunk).get();
-        usersQuerySnapshot.forEach(doc => {
-            usersMap.set(doc.id, doc.data());
-        });
+        if (chunk.length > 0) {
+            const usersQuerySnapshot = await usersCollection.where(admin.firestore.FieldPath.documentId(), 'in', chunk).get();
+            usersQuerySnapshot.forEach(doc => {
+                usersMap.set(doc.id, doc.data());
+            });
+        }
       }
     }
     

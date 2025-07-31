@@ -2,7 +2,7 @@ import admin from 'firebase-admin';
 
 const initializeAdmin = () => {
   if (admin.apps.length > 0) {
-    return;
+    return admin.app();
   }
 
   try {
@@ -16,7 +16,7 @@ const initializeAdmin = () => {
 
     const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
 
-    admin.initializeApp({
+    return admin.initializeApp({
       credential: admin.credential.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
@@ -30,8 +30,7 @@ const initializeAdmin = () => {
   }
 };
 
-initializeAdmin();
-
-export const adminAuth = admin.auth();
-export const adminDb = admin.firestore();
+const app = initializeAdmin();
+export const adminAuth = admin.auth(app);
+export const adminDb = admin.firestore(app);
 export default admin;
