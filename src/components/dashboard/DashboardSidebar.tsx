@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,9 @@ export default function DashboardSidebar({ activeView, setActiveView }: Dashboar
     const router = useRouter();
 
     const menuItems = [
-        { id: 'users', label: 'User Management', icon: Users, path: '/dashboard' },
-        { id: 'groups', label: 'Group Management', icon: GroupIcon, path: '/dashboard' },
-        { id: 'tests', label: 'Test Management', icon: FileText, path: '/dashboard' },
+        { id: 'users', label: 'User Management', icon: Users },
+        { id: 'groups', label: 'Group Management', icon: GroupIcon },
+        { id: 'tests', label: 'Test Management', icon: FileText },
     ];
 
     const handleNavigate = (view: View) => {
