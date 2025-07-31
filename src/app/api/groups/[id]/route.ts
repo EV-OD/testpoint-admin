@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getAdminDb } from '@/lib/firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const { id } = params;
   try {
-    const db = getAdminDb();
-    const groupDoc = await db.collection('groups').doc(id).get();
+    const groupDoc = await adminDb.collection('groups').doc(id).get();
 
     if (!groupDoc.exists) {
       return NextResponse.json({ message: 'Group not found' }, { status: 404 });
@@ -33,8 +32,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
     }
 
-    const db = getAdminDb();
-    await db.collection('groups').doc(id).update({
+    await adminDb.collection('groups').doc(id).update({
         name,
         userIds,
     });
@@ -53,8 +51,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
         return NextResponse.json({ message: 'Group ID is required' }, { status: 400 });
     }
     
-    const db = getAdminDb();
-    await db.collection('groups').doc(id).delete();
+    await adminDb.collection('groups').doc(id).delete();
 
     return NextResponse.json({ message: 'Group deleted successfully' });
   } catch (error: any) {

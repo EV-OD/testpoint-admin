@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAdminDb } from '@/lib/firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
 
 export async function POST(request: Request) {
   try {
@@ -9,8 +9,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
     }
 
-    const db = getAdminDb();
-    const groupRef = await db.collection('groups').add({
+    const groupRef = await adminDb.collection('groups').add({
       name,
       userIds,
       created_at: new Date().toISOString(),
@@ -25,8 +24,7 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const db = getAdminDb();
-    const groupsSnapshot = await db.collection('groups').get();
+    const groupsSnapshot = await adminDb.collection('groups').get();
     const groups = groupsSnapshot.docs.map(doc => {
         const data = doc.data();
         return {
