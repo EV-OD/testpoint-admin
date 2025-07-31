@@ -73,7 +73,11 @@ export function QuestionItem({ testId, question, questionNumber, onUpdate, onDel
 
   // When parent component's question changes, update local state
   useEffect(() => {
-    setLocalQuestion(question);
+    // Only update local state if the incoming question is different
+    // and we are not in the middle of saving. This avoids overwriting user input.
+    if (JSON.stringify(localQuestion) !== JSON.stringify(question)) {
+       setLocalQuestion(question);
+    }
   }, [question]);
 
   // When local state changes, trigger a debounced save
@@ -183,7 +187,7 @@ export function QuestionItem({ testId, question, questionNumber, onUpdate, onDel
         <RadioGroup onValueChange={handleCorrectOptionChange} value={correctOptionId} className="space-y-2">
             {localQuestion.options.map((option) => (
               <div key={option.id} className="flex items-center gap-2">
-                <RadioGroupItem value={option.id} />
+                <RadioGroupItem value={option.id} id={`${localQuestion.id}-${option.id}`} />
                 <Input
                   value={option.text}
                   onChange={e => handleOptionTextChange(option.id, e.target.value)}

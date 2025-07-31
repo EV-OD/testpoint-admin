@@ -23,15 +23,19 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
 
   const fetchTestDetails = useCallback(async () => {
     try {
-        // This endpoint doesn't exist, we will need to create it.
-        // For now, let's just create a dummy test object.
-        // In a real app, you would fetch from `/api/tests/${testId}`
-        // and that endpoint would need to be created.
-        setTest({ id: testId, name: 'Loading test...' } as Test)
-    } catch(e) {
-        console.log(e)
+        // This endpoint doesn't exist yet, but we can fetch the test details
+        // from the main tests endpoint and find the one with the matching id.
+        const res = await fetch(`/api/tests`);
+        const tests = await res.json();
+        if (!res.ok) throw new Error(tests.message || 'Failed to fetch test details');
+        const currentTest = tests.find((t: Test) => t.id === testId);
+        setTest(currentTest || { id: testId, name: 'Test not found' } as Test)
+    } catch(e: any) {
+        console.error(e);
+        toast({ title: 'Error', description: e.message, variant: 'destructive' });
+        setTest({ id: testId, name: 'Error loading name' } as Test);
     }
-  }, [testId]);
+  }, [testId, toast]);
 
   const fetchQuestions = useCallback(async () => {
     setLoading(true);
@@ -53,28 +57,27 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
   }, [fetchTestDetails, fetchQuestions]);
   
  const handleAddQuestion = async () => {
-    // Create a temporary question for optimistic UI update
     const tempId = `temp-${Date.now()}`;
-    const newQuestion: Question = {
-      id: tempId,
+    const newQuestionData = {
       text: 'New Question',
       options: [
-        { id: '1', text: 'Option 1', isCorrect: true },
-        { id: '2', text: 'Option 2', isCorrect: false },
+        { id: `${Date.now()}-1`, text: 'Option 1', isCorrect: true },
+        { id: `${Date.now()}-2`, text: 'Option 2', isCorrect: false },
       ],
     };
 
-    // Optimistically update the UI
-    setQuestions(prev => [...prev, newQuestion]);
+    const optimisticQuestion: Question = {
+        id: tempId,
+        ...newQuestionData,
+    };
+
+    setQuestions(prev => [...prev, optimisticQuestion]);
 
     try {
       const response = await fetch(`/api/tests/${testId}/questions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: newQuestion.text,
-          options: newQuestion.options,
-        }),
+        body: JSON.stringify(newQuestionData),
       });
 
       if (!response.ok) {
@@ -84,13 +87,11 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
       
       const savedQuestion = await response.json();
       
-      // Replace temporary question with the one from the server
-      setQuestions(prev => prev.map(q => q.id === tempId ? { ...q, id: savedQuestion.id } : q));
+      setQuestions(prev => prev.map(q => q.id === tempId ? savedQuestion : q));
       toast({ title: 'Success', description: 'New question added.' });
 
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
-      // Rollback: remove the temporary question if the API call fails
       setQuestions(prev => prev.filter(q => q.id !== tempId));
     }
   };
@@ -102,7 +103,6 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
   const handleDeleteQuestion = async (questionId: string) => {
     const originalQuestions = [...questions];
     
-    // Optimistically remove the question from the UI
     setQuestions(prev => prev.filter(q => q.id !== questionId));
 
     try {
@@ -114,7 +114,6 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
       toast({ title: 'Success', description: 'Question deleted successfully.' });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
-      // Rollback: re-add the question if the API call fails
       setQuestions(originalQuestions);
     }
   };
@@ -128,7 +127,7 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
         </Button>
         <div>
           <h1 className="text-2xl font-bold">Manage Questions</h1>
-          <p className="text-muted-foreground">For test: {test?.name}</p>
+          <p className="text-muted-foreground">For test: {test?.name || <Skeleton className="h-5 w-32 inline-block" />}</p>
         </div>
       </div>
 
