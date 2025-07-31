@@ -1,6 +1,26 @@
 
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+import type { Question } from '@/lib/types';
+
+export async function PUT(request: Request, { params }: { params: { id: string, questionId: string } }) {
+    const { id: testId, questionId } = params;
+    try {
+        const questionData: Partial<Question> = await request.json();
+
+        if (!questionData) {
+            return NextResponse.json({ message: 'Missing question data' }, { status: 400 });
+        }
+
+        await adminDb.collection('tests').doc(testId).collection('questions').doc(questionId).update(questionData);
+
+        return NextResponse.json({ message: 'Question updated successfully' });
+    } catch (error: any) {
+        console.error(`Error updating question ${questionId} for test ${testId}:`, error);
+        return NextResponse.json({ message: 'Failed to update question', error: error.message }, { status: 500 });
+    }
+}
+
 
 export async function DELETE(request: Request, { params }: { params: { id: string, questionId: string } }) {
   const { id: testId, questionId } = params;
@@ -19,7 +39,8 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
             // Test might have been deleted, which is okay.
             return;
         }
-        const newCount = Math.max(0, (testDoc.data()?.question_count || 1) - 1);
+        const currentCount = testDoc.data()?.question_count || 0;
+        const newCount = Math.max(0, currentCount - 1);
         transaction.update(testRef, { question_count: newCount });
     });
 

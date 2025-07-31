@@ -8,15 +8,19 @@ export async function POST(request: Request, { params }: { params: { id: string 
   try {
     const questionData: Omit<Question, 'id'> = await request.json();
 
-    if (!questionData.text || !Array.isArray(questionData.options) || questionData.options.length < 2) {
+    if (!questionData.text || !Array.isArray(questionData.options)) {
       return NextResponse.json({ message: 'Missing or invalid required fields' }, { status: 400 });
     }
     
-    // Ensure one option is correct
-    const hasCorrectOption = questionData.options.some(opt => opt.isCorrect);
-    if (!hasCorrectOption) {
-        return NextResponse.json({ message: 'One option must be marked as correct.' }, { status: 400 });
+    // Ensure one option is correct if options are provided
+    if (questionData.options.length > 0) {
+        const hasCorrectOption = questionData.options.some(opt => opt.isCorrect);
+        if (!hasCorrectOption && questionData.options.some(opt => opt.text)) {
+            // If there are options with text, one must be correct
+             return NextResponse.json({ message: 'One option must be marked as correct.' }, { status: 400 });
+        }
     }
+
 
     const questionRef = await adminDb.collection('tests').doc(testId).collection('questions').add({
       ...questionData,
@@ -34,7 +38,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
         transaction.update(testRef, { question_count: newCount });
     });
 
-    return NextResponse.json({ id: questionRef.id, ...questionData }, { status: 201 });
+    const newQuestion = { id: questionRef.id, ...questionData };
+
+    return NextResponse.json(newQuestion, { status: 201 });
   } catch (error: any) {
     console.error(`Error creating question for test ${testId}:`, error);
     return NextResponse.json({ message: 'Failed to create question', error: error.message }, { status: 500 });
@@ -45,7 +51,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const testId = params.id;
   try {
-    const questionsSnapshot = await adminDb.collection('tests').doc(testId).collection('questions').get();
+    const questionsSnapshot = await adminDb.collection('tests').doc(testId).collection('questions').orderBy('created_at').get();
     const questions = questionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
     return NextResponse.json(questions);
   } catch (error: any) {
