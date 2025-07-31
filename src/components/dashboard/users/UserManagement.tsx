@@ -10,21 +10,35 @@ import { Badge } from '@/components/ui/badge';
 import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { UserForm } from './UserForm';
 import { useToast } from '@/hooks/use-toast';
-
-type UserWithGroups = User & { groups: { name: string }[] };
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 export function UserManagement() {
-  const [users, setUsers] = useState<UserWithGroups[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
   const { toast } = useToast();
 
   const fetchUsers = useCallback(async () => {
-    // This will be implemented once Firestore is set up.
-    console.log("Fetching users...");
-    // For now, we'll use dummy data.
-    setUsers([]);
-  }, []);
+    setLoading(true);
+    try {
+      const response = await fetch('/api/users');
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      const data = await response.json();
+      setUsers(data);
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: 'Error',
+        description: 'Could not fetch users.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
     fetchUsers();
@@ -41,15 +55,66 @@ export function UserManagement() {
   };
 
   const handleDelete = async (userId: string) => {
-    toast({ title: "Note", description: "Delete functionality will be implemented with Firestore." });
+     try {
+      const response = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete user');
+      }
+
+      toast({
+        title: 'Success',
+        description: 'User has been deleted.',
+      });
+      fetchUsers(); // Refresh the list
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Could not delete user.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleSaveUser = async (userData: any) => {
+  const handleSaveUser = async (userData: Partial<User>) => {
     const isEditing = !!userData.id;
-    toast({ title: "Note", description: "Save functionality will be implemented with Firestore." });
-    
-    setIsFormOpen(false);
-    setSelectedUser(undefined);
+    const url = isEditing ? `/api/users/${userData.id}` : '/api/users';
+    const method = isEditing ? 'PUT' : 'POST';
+
+    try {
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to ${isEditing ? 'update' : 'create'} user`);
+      }
+
+      toast({
+        title: 'Success',
+        description: `User has been successfully ${isEditing ? 'updated' : 'created'}.`,
+      });
+      
+      setIsFormOpen(false);
+      setSelectedUser(undefined);
+      fetchUsers(); // Refresh the list
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        title: 'Error',
+        description: error.message || `Could not ${isEditing ? 'update' : 'create'} user.`,
+        variant: 'destructive',
+      });
+    }
   };
 
   const getRoleBadgeVariant = (role: User['role']): 'default' | 'secondary' | 'destructive' => {
@@ -69,7 +134,7 @@ export function UserManagement() {
         <CardHeader className="flex flex-row items-center justify-between px-0">
           <div>
             <CardTitle>User Accounts</CardTitle>
-            <CardDescription>Manage all user accounts in the system. (Firestore backend pending)</CardDescription>
+            <CardDescription>Manage all user accounts in the system.</CardDescription>
           </div>
           <Button onClick={handleAddNew}>
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -89,10 +154,16 @@ export function UserManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.length === 0 ? (
+                {loading ? (
+                    <TableRow>
+                        <TableCell colSpan={5} className="h-24 text-center">
+                        Loading users...
+                        </TableCell>
+                    </TableRow>
+                ) : users.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
-                      No users found. Firestore integration is pending.
+                      No users found.
                     </TableCell>
                   </TableRow>
                 ) : users.map((user) => (
@@ -103,10 +174,10 @@ export function UserManagement() {
                       <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">{user.role}</Badge>
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-muted-foreground">
-                      {user.groups.map(g => g.name).join(', ')}
+                      {/* Placeholder for groups */}
                     </TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
+                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">
                             <span className="sr-only">Open menu</span>
@@ -120,10 +191,31 @@ export function UserManagement() {
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(user.id)}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                               <Button variant="ghost" className="w-full justify-start text-sm text-destructive hover:text-destructive p-2 m-0 h-full">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                               </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete the user account and remove their data from our servers.
+                                </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                    onClick={() => handleDelete(user.id)}
+                                    className="bg-destructive hover:bg-destructive/90"
+                                >
+                                    Delete User
+                                </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

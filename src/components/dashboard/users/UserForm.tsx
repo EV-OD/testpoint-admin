@@ -17,18 +17,23 @@ const userFormSchema = z.object({
   role: z.enum(['admin', 'teacher', 'student']),
   password: z.string().optional(),
 }).refine(data => {
-    // If it is a new user (no id), password is required.
-    return !!data.id || (!!data.password && data.password.length >= 6);
+    // If it is a new user (no id), password is required and must be at least 6 characters.
+    if (!data.id) {
+      return !!data.password && data.password.length >= 6;
+    }
+    // If editing a user, password is not required.
+    return true;
 }, {
     message: "Password must be at least 6 characters long for new users.",
     path: ["password"],
 });
 
+
 type UserFormValues = z.infer<typeof userFormSchema>;
 
 interface UserFormProps {
   user?: User;
-  onSave: (user: any) => void;
+  onSave: (user: Partial<User>) => void;
   onClose: () => void;
 }
 
