@@ -1,8 +1,22 @@
-# Firebase Studio
+# TestPoint Admin Dashboard
 
-This is a NextJS starter in Firebase Studio.
+This is a comprehensive admin dashboard for the TestPoint application, built with Next.js and Firebase. It allows administrators and teachers to manage users, create groups, and build and schedule tests.
 
-To get started, take a look at src/app/page.tsx.
+## Features
+
+- **User Management**: Create, edit, and delete users (students, teachers, admins).
+- **Group Management**: Organize users into groups (e.g., classes) to easily assign tests.
+- **Test Management**: Create and configure tests, including setting time limits, question counts, and scheduling.
+- **Dynamic Question Builder**: A "Google Forms" style interface for adding and editing questions with an auto-saving feature.
+- **Authentication**: Secure login system using Firebase Authentication.
+
+## Tech Stack
+
+- [Next.js](https://nextjs.org/) (React Framework)
+- [Firebase](https://firebase.google.com/) (Authentication, Firestore Database)
+- [ShadCN UI](https://ui.shadcn.com/) (Component Library)
+- [Tailwind CSS](https://tailwindcss.com/) (Styling)
+- [TypeScript](https://www.typescriptlang.org/)
 
 ## Firebase Setup Instructions
 
