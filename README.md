@@ -1,13 +1,13 @@
 # TestPoint Admin Dashboard
 
-This is a comprehensive admin dashboard for the TestPoint application, built with Next.js and Firebase. It allows administrators and teachers to manage users, create groups, and build and schedule tests.
+This is a comprehensive admin dashboard for the TestPoint application, built with Next.js and Firebase. It allows administrators and teachers to manage users, create groups, and build and schedule tests. The platform features a dynamic, "Google Forms" style question builder with an optimistic UI for a seamless and responsive experience.
 
 ## Features
 
-- **User Management**: Create, edit, and delete users (students, teachers, admins).
-- **Group Management**: Organize users into groups (e.g., classes) to easily assign tests.
+- **User Management**: Create, edit, and delete users (students, teachers, admins) with optimistic UI updates for a smooth workflow.
+- **Group Management**: Organize users into groups (e.g., classes) to easily assign tests, also featuring optimistic updates.
 - **Test Management**: Create and configure tests, including setting time limits, question counts, and scheduling.
-- **Dynamic Question Builder**: A "Google Forms" style interface for adding and editing questions with an auto-saving feature.
+- **Dynamic Question Builder**: A "Google Forms" style interface for adding and editing questions with a real-time, auto-saving feature.
 - **Authentication**: Secure login system using Firebase Authentication.
 
 ## Tech Stack
