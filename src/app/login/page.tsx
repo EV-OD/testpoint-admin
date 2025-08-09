@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Cpu } from 'lucide-react';
+import { Cpu, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -61,7 +62,12 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm relative">
+         {loading && (
+          <div className="absolute inset-0 bg-card/80 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+            <Loader2 className="h-10 w-10 text-primary animate-spin" />
+          </div>
+        )}
         <CardHeader className="text-center">
            <div className="flex justify-center items-center mb-4">
             <Cpu className="h-10 w-10 text-primary" />
