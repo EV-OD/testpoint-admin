@@ -18,16 +18,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 export function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
   const [isGroupsModalOpen, setIsGroupsModalOpen] = useState(false);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
   const { toast } = useToast();
 
-  const fetchUsers = useCallback(async () => {
-    // Only set loading on initial fetch
-    if (users.length === 0) {
+  const fetchUsers = useCallback(async (isInitialLoad = false) => {
+    if (isInitialLoad) {
         setLoading(true);
     }
     try {
@@ -45,13 +43,15 @@ export function UserManagement() {
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      }
     }
-  }, [toast, users.length]);
+  }, [toast]);
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    fetchUsers(true);
+  }, [fetchUsers]);
 
   const handleAddNew = () => {
     setSelectedUser(undefined);
@@ -90,17 +90,35 @@ export function UserManagement() {
   };
 
   const handleSaveUser = async (userData: Partial<User>) => {
-    setIsSubmitting(true);
     const isEditing = !!userData.id;
+    const originalUsers = [...users];
+    
+    // Optimistic UI update
+    if (isEditing) {
+        setUsers(currentUsers => 
+            currentUsers.map(u => u.id === userData.id ? { ...u, ...userData } : u)
+        );
+    } else {
+        // For new users, create a temporary user to show in the UI immediately
+        const tempUser: User = {
+            id: `temp-${Date.now()}`,
+            name: userData.name || '',
+            email: userData.email || '',
+            role: userData.role || 'student',
+            groups: [],
+        };
+        setUsers(currentUsers => [tempUser, ...currentUsers]);
+    }
+    setIsFormOpen(false);
+    setSelectedUser(undefined);
+
     const url = isEditing ? `/api/users/${userData.id}` : '/api/users';
     const method = isEditing ? 'PUT' : 'POST';
 
     try {
       const response = await fetch(url, {
         method: method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData),
       });
 
@@ -114,9 +132,8 @@ export function UserManagement() {
         description: `User has been successfully ${isEditing ? 'updated' : 'created'}.`,
       });
       
-      setIsFormOpen(false);
-      setSelectedUser(undefined);
-      await fetchUsers(); // Refresh the list
+      // On success, refresh the data from the server to get the final state
+      await fetchUsers();
     } catch (error: any) {
       console.error(error);
       toast({
@@ -124,8 +141,8 @@ export function UserManagement() {
         description: error.message || `Could not ${isEditing ? 'update' : 'create'} user.`,
         variant: 'destructive',
       });
-    } finally {
-        setIsSubmitting(false);
+      // On failure, revert the optimistic update
+      setUsers(originalUsers);
     }
   };
 
@@ -152,23 +169,13 @@ export function UserManagement() {
     }
     if (groupCount > 2) {
       return (
-        <Button variant="link" className="p-0 h-auto" onClick={() => handleViewGroups(user)}>
+        <Button variant="link" className="p-0 h-auto" onClick={(e) => { e.stopPropagation(); handleViewGroups(user); }}>
           {groupCount} Groups
         </Button>
       );
     }
     return user.groups!.join(', ');
   }
-
-  const renderSkeleton = () => (
-    <TableRow>
-        <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-        <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-40" /></TableCell>
-        <TableCell><Skeleton className="h-6 w-16" /></TableCell>
-        <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
-        <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
-    </TableRow>
-  );
 
   return (
     <>
@@ -197,18 +204,20 @@ export function UserManagement() {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                    Array.from({ length: 3 }).map((_, i) => <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell></TableRow>)
-                ) : users.length === 0 && !isSubmitting ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <TableRow key={i}>
+                        <TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell>
+                      </TableRow>
+                    ))
+                ) : users.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
                       No users found.
                     </TableCell>
                   </TableRow>
                 ) : (
-                    <>
-                    {isSubmitting && renderSkeleton()}
-                    {users.map((user) => (
-                    <TableRow key={user.id}>
+                    users.map((user) => (
+                    <TableRow key={user.id} className={user.id.startsWith('temp-') ? 'opacity-50' : ''}>
                         <TableCell className="font-medium">{user.name}</TableCell>
                         <TableCell className="hidden md:table-cell text-muted-foreground">{user.email}</TableCell>
                         <TableCell>
@@ -261,8 +270,7 @@ export function UserManagement() {
                         </DropdownMenu>
                         </TableCell>
                     </TableRow>
-                    ))}
-                    </>
+                    ))
                 )}
               </TableBody>
             </Table>
@@ -294,3 +302,5 @@ export function UserManagement() {
     </>
   );
 }
+
+    
