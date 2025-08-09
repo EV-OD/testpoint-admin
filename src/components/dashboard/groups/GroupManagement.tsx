@@ -19,14 +19,12 @@ export function GroupManagement() {
   const [groups, setGroups] = useState<GroupWithMemberCount[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState< (Group & { userIds: string[] }) | undefined>(undefined);
   const { toast } = useToast();
 
-  const fetchGroups = useCallback(async () => {
-    // Only set loading true on initial fetch
-    if (groups.length === 0) {
+  const fetchGroups = useCallback(async (isInitialLoad = false) => {
+    if (isInitialLoad) {
       setLoading(true);
     }
     try {
@@ -37,9 +35,11 @@ export function GroupManagement() {
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      }
     }
-  }, [toast, groups.length]);
+  }, [toast]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -54,9 +54,9 @@ export function GroupManagement() {
   }, [toast]);
 
   useEffect(() => {
-    fetchGroups();
+    fetchGroups(true);
     fetchUsers();
-  }, []);
+  }, [fetchGroups, fetchUsers]);
 
   const handleAddNew = () => {
     setSelectedGroup(undefined);
@@ -90,8 +90,30 @@ export function GroupManagement() {
   };
 
   const handleSaveGroup = async (groupData: {id?: string; name: string, userIds: string[]}) => {
-    setIsSubmitting(true);
     const isEditing = !!groupData.id;
+    const originalGroups = [...groups];
+
+    // Optimistic UI update
+    if (isEditing) {
+      setGroups(currentGroups => 
+        currentGroups.map(g => 
+          g.id === groupData.id 
+            ? { ...g, name: groupData.name, member_count: groupData.userIds.length }
+            : g
+        )
+      );
+    } else {
+      const tempGroup: GroupWithMemberCount = {
+        id: `temp-${Date.now()}`,
+        name: groupData.name,
+        member_count: groupData.userIds.length,
+      };
+      setGroups(currentGroups => [tempGroup, ...currentGroups]);
+    }
+    
+    setIsFormOpen(false);
+    setSelectedGroup(undefined);
+
     const url = isEditing ? `/api/groups/${groupData.id}` : '/api/groups';
     const method = isEditing ? 'PUT' : 'POST';
 
@@ -107,23 +129,15 @@ export function GroupManagement() {
             throw new Error(errorData.message || `Failed to ${isEditing ? 'update' : 'create'} group.`);
         }
         toast({ title: 'Success', description: `Group successfully ${isEditing ? 'updated' : 'created'}.`});
-        setIsFormOpen(false);
-        setSelectedGroup(undefined);
+        
+        // On success, refresh the data from the server to get the final state
         await fetchGroups();
     } catch (error: any) {
         toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } finally {
-        setIsSubmitting(false);
+        // On failure, revert the optimistic update
+        setGroups(originalGroups);
     }
   };
-
-  const renderSkeleton = () => (
-    <TableRow>
-        <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-        <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-        <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
-    </TableRow>
-  );
 
   return (
     <>
@@ -151,17 +165,15 @@ export function GroupManagement() {
               <TableBody>
                 {loading ? (
                     Array.from({ length: 3 }).map((_, i) => <TableRow key={i}><TableCell colSpan={3}><Skeleton className="h-8 w-full" /></TableCell></TableRow>)
-                ) : groups.length === 0 && !isSubmitting ? (
+                ) : groups.length === 0 ? (
                     <TableRow>
                         <TableCell colSpan={3} className="h-24 text-center">
                         No groups found. Create one to get started.
                         </TableCell>
                     </TableRow>
                 ) : (
-                    <>
-                    {isSubmitting && renderSkeleton()}
-                    {groups.map((group) => (
-                    <TableRow key={group.id}>
+                    groups.map((group) => (
+                    <TableRow key={group.id} className={group.id.startsWith('temp-') ? 'opacity-50' : ''}>
                         <TableCell className="font-medium">{group.name}</TableCell>
                         <TableCell>{group.member_count}</TableCell>
                         <TableCell className="text-right">
@@ -207,8 +219,7 @@ export function GroupManagement() {
                         </DropdownMenu>
                         </TableCell>
                     </TableRow>
-                    ))}
-                    </>
+                    ))
                 )}
               </TableBody>
             </Table>
