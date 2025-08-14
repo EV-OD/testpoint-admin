@@ -1,7 +1,8 @@
-
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type { User } from '@/lib/types';
+
+export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   try {
