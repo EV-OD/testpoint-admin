@@ -9,14 +9,14 @@ export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, group_id, time_limit, question_count, date_time } = await request.json();
+    const { name, group_id, time_limit, date_time } = await request.json();
     const sessionCookie = request.cookies.get('session')?.value;
 
     if (!sessionCookie) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!name || !group_id || !time_limit || !question_count || !date_time) {
+    if (!name || !group_id || !time_limit || !date_time) {
       return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
     }
     
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       name,
       group_id,
       time_limit,
-      question_count,
+      question_count: 0,
       test_maker,
       date_time: new Date(date_time),
       created_at: new Date(),
@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
         id: testRef.id, 
         ...testData,
         date_time: (testData.date_time as any).toDate().toISOString(),
+        question_count: 0,
         status: 'draft',
     }, { status: 201 });
   } catch (error: any) {
@@ -61,13 +62,7 @@ export async function GET(request: NextRequest) {
     const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
     const userRole = userDoc.data()?.role;
 
-    let testsQuery = adminDb.collection('tests').orderBy('date_time', 'desc');
-
-    if (userRole === 'teacher') {
-        testsQuery = testsQuery.where('test_maker', '==', decodedToken.uid);
-    }
-    
-    const testsSnapshot = await testsQuery.get();
+    const testsSnapshot = await adminDb.collection('tests').get();
     
     const groupsSnapshot = await adminDb.collection('groups').get();
     const groupsMap = new Map();
@@ -75,7 +70,7 @@ export async function GET(request: NextRequest) {
       groupsMap.set(doc.id, doc.data());
     });
     
-    const tests = testsSnapshot.docs.map(doc => {
+    let allTests = testsSnapshot.docs.map(doc => {
       const data = doc.data();
       const group = groupsMap.get(data.group_id);
       
@@ -96,7 +91,15 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json(tests);
+    // Filter by role in code
+    if (userRole === 'teacher') {
+        allTests = allTests.filter(test => test.test_maker === decodedToken.uid);
+    }
+    
+    // Sort in code
+    allTests.sort((a, b) => new Date(b.date_time).getTime() - new Date(a.date_time).getTime());
+
+    return NextResponse.json(allTests);
   } catch (error: any) {
     console.error('Error fetching tests:', error);
     return NextResponse.json({ message: 'Failed to fetch tests', error: error.message }, { status: 500 });
