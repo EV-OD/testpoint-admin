@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
+import { adminAuth } from '@/lib/firebase-admin';
 
 const PROTECTED_ROUTES = ['/dashboard'];
 const PUBLIC_ROUTES = ['/login'];
@@ -18,10 +19,7 @@ export async function middleware(request: NextRequest) {
     }
 
     try {
-      // In a real app, you'd verify the token with Firebase Admin SDK
-      // For this prototype, we'll just check if the cookie exists.
-      // A server-side check of the token is required for production.
-      // Example: const decodedToken = await auth.verifySessionCookie(sessionCookie);
+      await adminAuth.verifySessionCookie(sessionCookie, true);
     } catch (error) {
       const url = request.nextUrl.clone();
       url.pathname = '/login';

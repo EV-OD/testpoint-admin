@@ -4,11 +4,38 @@
 import { DashboardLayout, type View } from '@/components/dashboard/DashboardLayout';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
+import type { User } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [activeView, setActiveView] = useState<View>('users');
+  const [userRole, setUserRole] = useState<User['role'] | null>(null);
+  const [loadingRole, setLoadingRole] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      setLoadingRole(true);
+      try {
+        const res = await fetch('/api/profile');
+        if (res.ok) {
+          const data = await res.json();
+          setUserRole(data.role);
+        } else {
+          // If fetching profile fails (e.g. session expired), redirect to login
+          router.push('/login');
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile', error);
+        router.push('/login');
+      } finally {
+        setLoadingRole(false);
+      }
+    };
+    fetchProfile();
+  }, [router]);
+
 
   useEffect(() => {
     // Determine view based on URL
@@ -24,11 +51,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         // If on the root dashboard, check local storage for the last view
         // This code now safely runs only on the client
         const lastView = localStorage.getItem('lastDashboardView') as View | null;
-        const viewToNavigate = lastView || 'users';
+        let viewToNavigate: View;
+
+        if (userRole === 'teacher' && lastView === 'users') {
+            viewToNavigate = 'groups';
+        } else {
+            viewToNavigate = lastView || (userRole === 'admin' ? 'users' : 'groups');
+        }
+        
         setActiveView(viewToNavigate);
         router.replace(`/dashboard?view=${viewToNavigate}`);
     }
-  }, [pathname, router]);
+  }, [pathname, router, userRole]);
 
   const handleSetActiveView = (view: View) => {
       setActiveView(view);
@@ -36,8 +70,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       router.push(`/dashboard?view=${view}`);
   }
 
+  if (loadingRole) {
+    return (
+        <div className="flex h-screen w-full overflow-hidden">
+            <Skeleton className="w-64 flex-shrink-0" />
+            <div className="flex flex-col w-full">
+                <Skeleton className="h-16" />
+                <main className="flex-grow p-4 md:p-6 lg:p-8">
+                    <div className="space-y-4">
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-64 w-full" />
+                    </div>
+                </main>
+            </div>
+        </div>
+    )
+  }
+
   return (
-    <DashboardLayout activeView={activeView} setActiveView={handleSetActiveView}>
+    <DashboardLayout 
+      activeView={activeView} 
+      setActiveView={handleSetActiveView}
+      userRole={userRole}
+    >
       {children}
     </DashboardLayout>
   );

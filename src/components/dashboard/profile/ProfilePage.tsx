@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -7,8 +8,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
 
 export function ProfilePage() {
   const [profile, setProfile] = useState<Partial<User> | null>(null);
@@ -16,22 +15,25 @@ export function ProfilePage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // In a real app, you would fetch profile data from Firestore
-        // using the user.uid
-        setProfile({
-          name: user.displayName || 'Admin User',
-          email: user.email || 'No email found',
-          role: 'admin', // Role would come from Firestore
-        });
-      } else {
+    const fetchProfile = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch('/api/profile');
+        if (res.ok) {
+          const data = await res.json();
+          setProfile(data);
+        } else {
+           const errorData = await res.json();
+           throw new Error(errorData.error || 'Failed to fetch profile');
+        }
+      } catch (error: any) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
         setProfile(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    };
+    fetchProfile();
   }, [toast]);
 
   const getInitials = (name?: string) => {

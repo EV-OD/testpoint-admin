@@ -5,21 +5,23 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Users, Group as GroupIcon, FileText, Cpu, User, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
+import type { User as UserType } from '@/lib/types';
 
 type View = 'users' | 'groups' | 'tests' | 'profile';
 
 interface DashboardSidebarProps {
     activeView: View;
     setActiveView: (view: View) => void;
+    userRole: UserType['role'] | null;
 }
 
-export default function DashboardSidebar({ activeView, setActiveView }: DashboardSidebarProps) {
+export default function DashboardSidebar({ activeView, setActiveView, userRole }: DashboardSidebarProps) {
     const router = useRouter();
 
     const menuItems = [
-        { id: 'users', label: 'User Management', icon: Users },
-        { id: 'groups', label: 'Group Management', icon: GroupIcon },
-        { id: 'tests', label: 'Test Management', icon: FileText },
+        { id: 'users', label: 'User Management', icon: Users, roles: ['admin'] },
+        { id: 'groups', label: 'Group Management', icon: GroupIcon, roles: ['admin', 'teacher'] },
+        { id: 'tests', label: 'Test Management', icon: FileText, roles: ['admin', 'teacher'] },
     ];
 
     const handleNavigate = (view: View) => {
@@ -42,21 +44,23 @@ export default function DashboardSidebar({ activeView, setActiveView }: Dashboar
             <nav className="flex-1 p-4 flex flex-col justify-between">
                 <ul className="space-y-2">
                     {menuItems.map(item => (
-                        <li key={item.id}>
-                            <Button
-                                variant="ghost"
-                                onClick={() => handleNavigate(item.id as View)}
-                                className={cn(
-                                    "w-full justify-start text-base py-6",
-                                    activeView === item.id 
-                                        ? "bg-primary/10 text-primary hover:bg-primary/20" 
-                                        : "hover:bg-primary/10 hover:text-primary"
-                                )}
-                            >
-                                <item.icon className="mr-3 h-5 w-5" />
-                                {item.label}
-                            </Button>
-                        </li>
+                        (item.roles.includes(userRole || '')) && (
+                             <li key={item.id}>
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => handleNavigate(item.id as View)}
+                                    className={cn(
+                                        "w-full justify-start text-base py-6",
+                                        activeView === item.id 
+                                            ? "bg-primary/10 text-primary hover:bg-primary/20" 
+                                            : "hover:bg-primary/10 hover:text-primary"
+                                    )}
+                                >
+                                    <item.icon className="mr-3 h-5 w-5" />
+                                    {item.label}
+                                </Button>
+                            </li>
+                        )
                     ))}
                 </ul>
                 <div>
