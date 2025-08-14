@@ -4,6 +4,8 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type { User } from '@/lib/types';
 import admin from 'firebase-admin';
 
+export const runtime = 'nodejs';
+
 export async function GET() {
   try {
     const listUsersResult = await adminAuth.listUsers();

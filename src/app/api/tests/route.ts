@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import type { Test } from '@/lib/types';
 
+export const runtime = 'nodejs';
+
 export async function POST(request: Request) {
   try {
     const { name, group_id, time_limit, question_count, date_time } = await request.json();

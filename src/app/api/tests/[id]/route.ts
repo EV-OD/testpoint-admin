@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 
+export const runtime = 'nodejs';
+
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   const { id } = params;
   try {
