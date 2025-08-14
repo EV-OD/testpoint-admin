@@ -20,7 +20,7 @@ export default function DashboardSidebar({ activeView, setActiveView, userRole }
 
     const menuItems = [
         { id: 'users', label: 'User Management', icon: Users, roles: ['admin'] },
-        { id: 'groups', label: 'Group Management', icon: GroupIcon, roles: ['admin', 'teacher'] },
+        { id: 'groups', label: 'Group Management', icon: GroupIcon, roles: ['admin'] },
         { id: 'tests', label: 'Test Management', icon: FileText, roles: ['admin', 'teacher'] },
     ];
 

@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Test, Group } from '@/lib/types';
+import type { Test, Group, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -24,8 +24,24 @@ export function TestManagement() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<Test | undefined>(undefined);
+  const [userRole, setUserRole] = useState<User['role'] | null>(null);
   const { toast } = useToast();
   const router = useRouter();
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                const res = await fetch('/api/profile');
+                if (res.ok) {
+                    const data = await res.json();
+                    setUserRole(data.role);
+                }
+            } catch (error) {
+                console.error('Failed to fetch profile', error);
+            }
+        };
+        fetchProfile();
+    }, []);
 
   const fetchTests = useCallback(async () => {
     if (tests.length === 0) {
@@ -57,7 +73,7 @@ export function TestManagement() {
   useEffect(() => {
     fetchTests();
     fetchGroups();
-  }, []);
+  }, [fetchTests, fetchGroups]);
 
   const handleAddNew = () => {
     setSelectedTest(undefined);
@@ -131,6 +147,8 @@ export function TestManagement() {
     </TableRow>
   );
 
+  const isAdmin = userRole === 'admin';
+
   return (
     <>
       <Card>
@@ -139,10 +157,12 @@ export function TestManagement() {
             <CardTitle>Tests</CardTitle>
             <CardDescription>Schedule and manage tests for different groups.</CardDescription>
           </div>
-          <Button onClick={handleAddNew}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Create New Test
-          </Button>
+          {isAdmin && (
+            <Button onClick={handleAddNew}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create New Test
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           <div className="border rounded-lg">
@@ -168,7 +188,7 @@ export function TestManagement() {
                     </TableRow>
                 ) : (
                     <>
-                    {isSubmitting && !isFormOpen && renderSkeleton()}
+                    {isSubmitting && !isFormOpen && isAdmin && renderSkeleton()}
                     {tests.map((test) => (
                     <TableRow key={test.id} className="cursor-pointer" onClick={() => handleViewQuestions(test.id)}>
                         <TableCell className="font-medium">{test.name}</TableCell>
@@ -190,35 +210,39 @@ export function TestManagement() {
                                 <FileQuestion className="mr-2 h-4 w-4" />
                                 View/Edit Questions
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEditDetails(test)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit Details
-                            </DropdownMenuItem>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" className="w-full justify-start text-sm text-destructive hover:text-destructive p-2 m-0 h-full">
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Delete
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        This action cannot be undone. This will permanently delete this test and all its questions.
-                                    </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                        onClick={() => handleDelete(test.id)}
-                                        className="bg-destructive hover:bg-destructive/90"
-                                    >
-                                        Delete Test
-                                    </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                                </AlertDialog>
+                            {isAdmin && (
+                                <>
+                                <DropdownMenuItem onClick={() => handleEditDetails(test)}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Edit Details
+                                </DropdownMenuItem>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" className="w-full justify-start text-sm text-destructive hover:text-destructive p-2 m-0 h-full">
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Delete
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action cannot be undone. This will permanently delete this test and all its questions.
+                                        </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                            onClick={() => handleDelete(test.id)}
+                                            className="bg-destructive hover:bg-destructive/90"
+                                        >
+                                            Delete Test
+                                        </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                    </AlertDialog>
+                                </>
+                            )}
                             </DropdownMenuContent>
                         </DropdownMenu>
                         </TableCell>
@@ -231,7 +255,7 @@ export function TestManagement() {
           </div>
         </CardContent>
       </Card>
-      {isFormOpen && (
+      {isFormOpen && isAdmin && (
         <TestForm
           test={selectedTest}
           allGroups={allGroups}

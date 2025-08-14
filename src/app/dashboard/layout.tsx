@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { DashboardLayout, type View } from '@/components/dashboard/DashboardLayout';
@@ -38,6 +39,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
 
   useEffect(() => {
+    if (loadingRole) return;
+    
     // Determine view based on URL
     if (pathname.includes('/dashboard/users')) {
       setActiveView('users');
@@ -48,21 +51,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     } else if (pathname.includes('/dashboard/profile')) {
         setActiveView('profile');
     } else if (pathname === '/dashboard') {
-        // If on the root dashboard, check local storage for the last view
-        // This code now safely runs only on the client
         const lastView = localStorage.getItem('lastDashboardView') as View | null;
         let viewToNavigate: View;
 
-        if (userRole === 'teacher' && lastView === 'users') {
-            viewToNavigate = 'groups';
+        if (userRole === 'admin') {
+            viewToNavigate = lastView || 'users';
+        } else if (userRole === 'teacher') {
+            viewToNavigate = 'tests'; // Always default teacher to tests view
         } else {
-            viewToNavigate = lastView || (userRole === 'admin' ? 'users' : 'groups');
+             viewToNavigate = 'profile'; // Fallback
         }
         
         setActiveView(viewToNavigate);
         router.replace(`/dashboard?view=${viewToNavigate}`);
     }
-  }, [pathname, router, userRole]);
+  }, [pathname, router, userRole, loadingRole]);
 
   const handleSetActiveView = (view: View) => {
       setActiveView(view);
