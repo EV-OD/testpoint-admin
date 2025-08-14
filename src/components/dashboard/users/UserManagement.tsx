@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import Papa from 'papaparse';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
@@ -25,7 +26,8 @@ export function UserManagement() {
   const [isGroupsModalOpen, setIsGroupsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
-  const [filter, setFilter] = useState('');
+  const [textFilter, setTextFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
   const [importingUsers, setImportingUsers] = useState<User[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -170,12 +172,20 @@ export function UserManagement() {
   };
   
   const filteredUsers = useMemo(() => {
-    if (!filter) return users;
-    return users.filter(user => 
-        user.name.toLowerCase().includes(filter.toLowerCase()) ||
-        user.email.toLowerCase().includes(filter.toLowerCase())
-    );
-  }, [users, filter]);
+    let filtered = users;
+    
+    if (roleFilter !== 'all') {
+        filtered = filtered.filter(user => user.role === roleFilter);
+    }
+
+    if (textFilter) {
+      filtered = filtered.filter(user => 
+          user.name.toLowerCase().includes(textFilter.toLowerCase()) ||
+          user.email.toLowerCase().includes(textFilter.toLowerCase())
+      );
+    }
+    return filtered;
+  }, [users, textFilter, roleFilter]);
 
   const handleExportCSV = () => {
     const headers = ['id', 'name', 'email', 'role', 'groups'];
@@ -310,12 +320,24 @@ export function UserManagement() {
                     </Button>
                 </div>
             </div>
-             <div className="mt-4">
+             <div className="mt-4 flex flex-col md:flex-row gap-2">
                 <Input 
                     placeholder="Filter by name or email..."
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
+                    value={textFilter}
+                    onChange={(e) => setTextFilter(e.target.value)}
+                    className="flex-grow"
                 />
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                    <SelectTrigger className="w-full md:w-[180px]">
+                        <SelectValue placeholder="Filter by role..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Roles</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="teacher">Teacher</SelectItem>
+                        <SelectItem value="student">Student</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
         </CardHeader>
         <CardContent>
@@ -479,3 +501,5 @@ export function UserManagement() {
     </>
   );
 }
+
+    
