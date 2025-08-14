@@ -91,7 +91,7 @@ export function TestManagement() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Failed to fetch groups');
       setAllGroups(data);
-    } catch (error: any) => {
+    } catch (error: any) {
       toast({ title: 'Error fetching groups', description: error.message, variant: 'destructive' });
     }
   }, [toast]);
