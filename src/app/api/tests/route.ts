@@ -93,18 +93,7 @@ export async function GET(request: NextRequest) {
 
     // Filter by role in code
     if (userRole === 'teacher') {
-        // A teacher can see tests they created OR tests assigned to groups they are a part of.
-        const teacherGroupIds: string[] = [];
-        groupsSnapshot.forEach(doc => {
-            const groupData = doc.data();
-            if (Array.isArray(groupData.userIds) && groupData.userIds.includes(decodedToken.uid)) {
-                teacherGroupIds.push(doc.id);
-            }
-        });
-
-        allTests = allTests.filter(test => 
-            test.test_maker === decodedToken.uid || teacherGroupIds.includes(test.group_id)
-        );
+        allTests = allTests.filter(test => test.test_maker === decodedToken.uid);
     }
     
     // Sort in code
