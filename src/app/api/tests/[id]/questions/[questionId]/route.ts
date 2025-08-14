@@ -3,8 +3,6 @@ import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import type { Question } from '@/lib/types';
 
-export const runtime = 'nodejs';
-
 export async function PUT(request: Request, { params }: { params: { id: string, questionId: string } }) {
     const { id: testId, questionId } = params;
     try {
