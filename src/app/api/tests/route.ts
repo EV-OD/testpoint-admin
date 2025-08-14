@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import type { Test } from '@/lib/types';
@@ -49,12 +50,23 @@ export async function GET() {
     });
     
     const tests = testsSnapshot.docs.map(doc => {
-      const data = doc.data() as Test & { date_time: admin.firestore.Timestamp };
+      const data = doc.data();
       const group = groupsMap.get(data.group_id);
+      
+      // Handle both Timestamp and string dates
+      let isoDateTime;
+      if (data.date_time?.toDate) { // It's a Firestore Timestamp
+        isoDateTime = data.date_time.toDate().toISOString();
+      } else if (typeof data.date_time === 'string') { // It's already a string
+        isoDateTime = data.date_time;
+      } else { // Fallback for other cases
+        isoDateTime = new Date().toISOString();
+      }
+
       return {
         ...data,
         id: doc.id,
-        date_time: data.date_time.toDate().toISOString(),
+        date_time: isoDateTime,
         groups: group ? { name: group.name } : null,
       };
     });
