@@ -8,13 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Trash2, Edit, Download, Upload } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Edit, Download, Upload, Loader2 } from 'lucide-react';
 import { UserForm } from './UserForm';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
+import Papa from 'papaparse';
 
 export function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
@@ -22,8 +23,12 @@ export function UserManagement() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
   const [isGroupsModalOpen, setIsGroupsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
   const [filter, setFilter] = useState('');
+  const [importingUsers, setImportingUsers] = useState<User[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const fetchUsers = useCallback(async (isInitialLoad = false) => {
@@ -98,7 +103,7 @@ export function UserManagement() {
     // Optimistic UI update
     if (isEditing) {
         setUsers(currentUsers => 
-            currentUsers.map(u => u.id === userData.id ? { ...u, ...userData } : u)
+            currentUsers.map(u => u.id === userData.id ? { ...u, ...userData } as User : u)
         );
     } else {
         // For new users, create a temporary user to show in the UI immediately
@@ -200,6 +205,72 @@ export function UserManagement() {
     document.body.removeChild(link);
   };
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setImportError(null);
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (result) => {
+          const requiredHeaders = ['name', 'email', 'password', 'role'];
+          const headers = result.meta.fields || [];
+          const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+
+          if (missingHeaders.length > 0) {
+            setImportError(`Missing required CSV columns: ${missingHeaders.join(', ')}`);
+            setImportingUsers([]);
+            return;
+          }
+          
+          const parsedUsers = result.data as any[];
+          setImportingUsers(parsedUsers.map(u => ({...u, id: `import-${Math.random()}`})));
+        },
+        error: (error) => {
+            setImportError(`CSV parsing error: ${error.message}`);
+            setImportingUsers([]);
+        }
+      });
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    setIsImporting(true);
+    try {
+        const response = await fetch('/api/users/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(importingUsers),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.message || 'Bulk import failed');
+        }
+        
+        const { successCount, errorCount, errors } = result;
+        let description = `${successCount} users imported successfully.`;
+        if (errorCount > 0) {
+            description += ` ${errorCount} failed.`;
+            console.error('Import errors:', errors);
+        }
+
+        toast({
+            title: 'Import Complete',
+            description: description
+        });
+
+        setIsImportModalOpen(false);
+        setImportingUsers([]);
+        await fetchUsers();
+    } catch (error: any) {
+        toast({ title: 'Import Error', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsImporting(false);
+    }
+  };
+
   const renderGroupsCell = (user: User) => {
     const groupCount = user.groups?.length || 0;
     if (groupCount === 0) {
@@ -225,7 +296,7 @@ export function UserManagement() {
                     <CardDescription>Manage all user accounts in the system.</CardDescription>
                 </div>
                  <div className="flex gap-2">
-                    <Button variant="outline" disabled>
+                    <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
                         <Upload className="mr-2 h-4 w-4" />
                         Import
                     </Button>
@@ -341,6 +412,55 @@ export function UserManagement() {
           onClose={() => setIsFormOpen(false)}
         />
       )}
+       <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+        <DialogContent className="sm:max-w-[625px]">
+            <DialogHeader>
+            <DialogTitle>Import Users from CSV</DialogTitle>
+            <DialogDescription>
+                Select a CSV file to bulk-import users. The file must contain columns: `name`, `email`, `password`, `role`.
+            </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+                <Input type="file" accept=".csv" onChange={handleFileChange} />
+                {importError && (
+                    <p className="text-sm text-destructive">{importError}</p>
+                )}
+                {importingUsers.length > 0 && (
+                    <>
+                        <h4 className="font-medium">Users to Import ({importingUsers.length})</h4>
+                        <div className="max-h-60 overflow-y-auto border rounded-md">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Name</TableHead>
+                                        <TableHead>Email</TableHead>
+                                        <TableHead>Role</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {importingUsers.map((user, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell>{user.name}</TableCell>
+                                            <TableCell>{user.email}</TableCell>
+                                            <TableCell>{user.role}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </>
+                )}
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setIsImportModalOpen(false)}>Cancel</Button>
+                <Button onClick={handleConfirmImport} disabled={isImporting || importingUsers.length === 0 || !!importError}>
+                    {isImporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Import {importingUsers.length > 0 ? `${importingUsers.length} Users` : ''}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+        </Dialog>
+
       {isGroupsModalOpen && viewingUser && (
         <Dialog open={isGroupsModalOpen} onOpenChange={setIsGroupsModalOpen}>
             <DialogContent>
