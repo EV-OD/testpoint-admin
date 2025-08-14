@@ -1,11 +1,10 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { NextResponse, type NextRequest } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
 export const runtime = 'nodejs';
 
-export async function GET(request: Request) {
-  const sessionCookie = cookies().get('session')?.value;
+export async function GET(request: NextRequest) {
+  const sessionCookie = request.cookies.get('session')?.value;
 
   if (!sessionCookie) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

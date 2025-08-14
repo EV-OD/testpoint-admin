@@ -1,8 +1,7 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { NextResponse, type NextRequest } from 'next/server';
 
-export async function GET() {
-  const sessionCookie = cookies().get('session')?.value;
+export async function GET(request: NextRequest) {
+  const sessionCookie = request.cookies.get('session')?.value;
 
   if (!sessionCookie) {
     return NextResponse.json({ isLoggedIn: false }, { status: 200 });

@@ -59,7 +59,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         } else if (userRole === 'teacher') {
             viewToNavigate = 'tests'; // Always default teacher to tests view
         } else {
-             viewToNavigate = 'profile'; // Fallback
+             viewToNavigate = 'profile'; // Fallback for students or other roles
         }
         
         setActiveView(viewToNavigate);
@@ -69,7 +69,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const handleSetActiveView = (view: View) => {
       setActiveView(view);
-      localStorage.setItem('lastDashboardView', view);
+      if (userRole === 'admin') {
+        localStorage.setItem('lastDashboardView', view);
+      }
       router.push(`/dashboard?view=${view}`);
   }
 
