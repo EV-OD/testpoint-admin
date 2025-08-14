@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { UserManagement } from '@/components/dashboard/users/UserManagement';
 import { GroupManagement } from '@/components/dashboard/groups/GroupManagement';
 import { TestManagement } from '@/components/dashboard/tests/TestManagement';
@@ -10,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 type View = 'users' | 'groups' | 'tests' | 'profile';
 
-export default function DashboardPage() {
+function DashboardContent() {
     const searchParams = useSearchParams();
     const [view, setView] = useState<View | null>(null);
 
@@ -19,29 +20,34 @@ export default function DashboardPage() {
         setView(viewParam);
     }, [searchParams]);
 
-    const renderContent = () => {
-        if (!view) {
-            return (
-                <div className="space-y-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-64 w-full" />
-                </div>
-            );
-        }
+    if (!view) {
+      // This part is effectively handled by the Suspense fallback
+      return null;
+    }
 
-        switch (view) {
-        case 'users':
-            return <UserManagement />;
-        case 'groups':
-            return <GroupManagement />;
-        case 'tests':
-            return <TestManagement />;
-        case 'profile':
-            return <ProfilePage />;
-        default:
-            return <UserManagement />;
-        }
-    };
+    switch (view) {
+    case 'users':
+        return <UserManagement />;
+    case 'groups':
+        return <GroupManagement />;
+    case 'tests':
+        return <TestManagement />;
+    case 'profile':
+        return <ProfilePage />;
+    default:
+        return <UserManagement />;
+    }
+}
 
-  return renderContent();
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+        <div className="space-y-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-64 w-full" />
+        </div>
+    }>
+      <DashboardContent />
+    </Suspense>
+  );
 }
