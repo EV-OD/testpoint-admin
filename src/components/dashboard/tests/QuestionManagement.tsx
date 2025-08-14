@@ -2,27 +2,43 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { Question, Test } from '@/lib/types';
+import type { Question, Test, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, ArrowLeft, Loader2, CheckCircle, Edit } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { QuestionItem, type SaveStatus } from './QuestionItem';
 
-interface QuestionManagementProps {
-  testId: string;
-}
+export function QuestionManagement() {
+  const router = useRouter();
+  const params = useParams();
+  const testId = typeof params.id === 'string' ? params.id : '';
 
-export function QuestionManagement({ testId }: QuestionManagementProps) {
   const [test, setTest] = useState<Test | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
   const [questionStatuses, setQuestionStatuses] = useState<Record<string, SaveStatus>>({});
   const { toast } = useToast();
-  const router = useRouter();
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch('/api/profile');
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile', error);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const fetchTestDetails = useCallback(async () => {
+    if (!testId) return;
     try {
         const res = await fetch(`/api/tests`);
         const tests = await res.json();
@@ -37,13 +53,13 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
   }, [testId, toast]);
 
   const fetchQuestions = useCallback(async () => {
+    if (!testId) return;
     setLoading(true);
     try {
       const response = await fetch(`/api/tests/${testId}/questions`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Failed to fetch questions');
       setQuestions(data);
-      // Initialize all statuses as saved
       const initialStatuses: Record<string, SaveStatus> = {};
       data.forEach((q: Question) => {
         initialStatuses[q.id] = 'saved';
@@ -153,9 +169,17 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
             if (questions.length > 0) {
                return <div className="flex items-center gap-2 text-green-600"><CheckCircle className="h-4 w-4"/><span>All changes saved</span></div>;
             }
-            return null; // Don't show anything if there are no questions
+            return null;
         default:
-            return <div className="h-6"></div>; // Placeholder
+            return <div className="h-6"></div>;
+    }
+  }
+
+  const handleGoBack = () => {
+    if (user?.role === 'teacher') {
+      router.push('/teacher');
+    } else {
+      router.push('/dashboard?view=tests');
     }
   }
 
@@ -163,7 +187,7 @@ export function QuestionManagement({ testId }: QuestionManagementProps) {
     <>
       <div className="flex items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" onClick={() => router.push('/dashboard?view=tests')}>
+            <Button variant="outline" size="icon" onClick={handleGoBack}>
             <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>

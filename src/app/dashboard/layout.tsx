@@ -10,28 +10,32 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [activeView, setActiveView] = useState<View>('users');
-  const [userRole, setUserRole] = useState<User['role'] | null>(null);
-  const [loadingRole, setLoadingRole] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
     const fetchProfile = async () => {
-      setLoadingRole(true);
+      setLoading(true);
       try {
         const res = await fetch('/api/profile');
         if (res.ok) {
           const data = await res.json();
-          setUserRole(data.role);
+          setUser(data);
+          // If a teacher somehow lands on the admin dashboard, redirect them.
+          if (data.role === 'teacher') {
+            router.replace('/teacher');
+            return;
+          }
         } else {
-          // If fetching profile fails (e.g. session expired), redirect to login
           router.push('/login');
         }
       } catch (error) {
         console.error('Failed to fetch profile', error);
         router.push('/login');
       } finally {
-        setLoadingRole(false);
+        setLoading(false);
       }
     };
     fetchProfile();
@@ -39,7 +43,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
 
   useEffect(() => {
-    if (loadingRole) return;
+    if (loading || !user) return;
     
     // Determine view based on URL
     if (pathname.includes('/dashboard/users')) {
@@ -51,31 +55,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     } else if (pathname.includes('/dashboard/profile')) {
         setActiveView('profile');
     } else if (pathname === '/dashboard') {
+        // Default view for admin
         const lastView = localStorage.getItem('lastDashboardView') as View | null;
-        let viewToNavigate: View;
-
-        if (userRole === 'admin') {
-            viewToNavigate = lastView || 'users';
-        } else if (userRole === 'teacher') {
-            viewToNavigate = 'tests'; // Always default teacher to tests view
-        } else {
-             viewToNavigate = 'profile'; // Fallback for students or other roles
-        }
+        const viewToNavigate = lastView || 'users';
         
         setActiveView(viewToNavigate);
         router.replace(`/dashboard?view=${viewToNavigate}`);
     }
-  }, [pathname, router, userRole, loadingRole]);
+  }, [pathname, router, user, loading]);
 
   const handleSetActiveView = (view: View) => {
       setActiveView(view);
-      if (userRole === 'admin') {
-        localStorage.setItem('lastDashboardView', view);
-      }
+      localStorage.setItem('lastDashboardView', view);
       router.push(`/dashboard?view=${view}`);
   }
 
-  if (loadingRole) {
+  if (loading || (user?.role === 'teacher')) {
     return (
         <div className="flex h-screen w-full overflow-hidden">
             <Skeleton className="w-64 flex-shrink-0" />
@@ -96,7 +91,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <DashboardLayout 
       activeView={activeView} 
       setActiveView={handleSetActiveView}
-      userRole={userRole}
+      userRole={user?.role || null}
     >
       {children}
     </DashboardLayout>

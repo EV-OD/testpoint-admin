@@ -1,7 +1,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PROTECTED_ROUTES = ['/dashboard'];
+const PROTECTED_ROUTES = ['/dashboard', '/teacher'];
 const PUBLIC_ROUTES = ['/login'];
 
 export async function middleware(request: NextRequest) {
@@ -33,5 +33,5 @@ export const config = {
   * - _next/image (image optimization files)
   * - favicon.ico (favicon file)
   */
-  matcher: ['/dashboard/:path*', '/login'],
+  matcher: ['/dashboard/:path*', '/teacher/:path*', '/login'],
 };

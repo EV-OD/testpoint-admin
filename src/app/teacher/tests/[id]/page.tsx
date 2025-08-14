@@ -3,8 +3,7 @@
 
 import { QuestionManagement } from "@/components/dashboard/tests/QuestionManagement";
 
-export default function TestQuestionsPage() {
-  // This page is now only for Admins. Teachers use /teacher/tests/[id]
+export default function TeacherTestQuestionsPage() {
   return (
       <QuestionManagement />
   );

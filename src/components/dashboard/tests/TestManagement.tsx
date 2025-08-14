@@ -27,6 +27,7 @@ export function TestManagement() {
   const [userRole, setUserRole] = useState<User['role'] | null>(null);
   const { toast } = useToast();
   const router = useRouter();
+  const isAdmin = userRole === 'admin';
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -72,8 +73,10 @@ export function TestManagement() {
 
   useEffect(() => {
     fetchTests();
-    fetchGroups();
-  }, [fetchTests, fetchGroups]);
+    if (isAdmin) {
+      fetchGroups();
+    }
+  }, [fetchTests, fetchGroups, isAdmin]);
 
   const handleAddNew = () => {
     setSelectedTest(undefined);
@@ -86,7 +89,8 @@ export function TestManagement() {
   };
 
   const handleViewQuestions = (testId: string) => {
-    router.push(`/dashboard/tests/${testId}`);
+    const path = isAdmin ? `/dashboard/tests/${testId}` : `/teacher/tests/${testId}`;
+    router.push(path);
   };
   
   const handleDelete = async (testId: string) => {
@@ -124,7 +128,6 @@ export function TestManagement() {
         setIsFormOpen(false);
         setSelectedTest(undefined);
         if (!isEditing) {
-          // No need to re-fetch, just go to the new page. The new page will fetch the data itself.
           router.push(`/dashboard/tests/${data.id}`);
         } else {
           await fetchTests();
@@ -146,8 +149,6 @@ export function TestManagement() {
         <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
     </TableRow>
   );
-
-  const isAdmin = userRole === 'admin';
 
   return (
     <>
@@ -183,7 +184,7 @@ export function TestManagement() {
                 ) : tests.length === 0 && !isSubmitting ? (
                     <TableRow>
                         <TableCell colSpan={6} className="h-24 text-center">
-                        No tests found. Create one to get started.
+                        No tests found.
                         </TableCell>
                     </TableRow>
                 ) : (

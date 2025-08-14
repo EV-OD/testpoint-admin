@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -37,7 +38,20 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
-        router.push('/dashboard');
+        // Fetch profile to determine where to redirect
+        const profileRes = await fetch('/api/profile');
+        if (profileRes.ok) {
+            const profile = await profileRes.json();
+            if (profile.role === 'teacher') {
+                router.push('/teacher');
+            } else {
+                router.push('/dashboard');
+            }
+        } else {
+            // Default to dashboard if profile fetch fails
+            router.push('/dashboard');
+        }
+
       } else {
         const errorData = await res.json();
         throw new Error(errorData.message || 'Login failed');
@@ -73,7 +87,7 @@ export default function LoginPage() {
             <Cpu className="h-10 w-10 text-primary" />
           </div>
           <CardTitle className="text-2xl">Login to TestPoint</CardTitle>
-          <CardDescription>Enter your credentials to access the admin dashboard.</CardDescription>
+          <CardDescription>Enter your credentials to access the platform.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
