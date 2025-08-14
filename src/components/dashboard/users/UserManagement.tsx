@@ -1,19 +1,20 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Edit, Download, Upload } from 'lucide-react';
 import { UserForm } from './UserForm';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 
 export function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
@@ -22,6 +23,7 @@ export function UserManagement() {
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
   const [isGroupsModalOpen, setIsGroupsModalOpen] = useState(false);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
+  const [filter, setFilter] = useState('');
   const { toast } = useToast();
 
   const fetchUsers = useCallback(async (isInitialLoad = false) => {
@@ -162,6 +164,42 @@ export function UserManagement() {
     }
   };
   
+  const filteredUsers = useMemo(() => {
+    if (!filter) return users;
+    return users.filter(user => 
+        user.name.toLowerCase().includes(filter.toLowerCase()) ||
+        user.email.toLowerCase().includes(filter.toLowerCase())
+    );
+  }, [users, filter]);
+
+  const handleExportCSV = () => {
+    const headers = ['id', 'name', 'email', 'role', 'groups'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredUsers.map(user => 
+        [
+          user.id,
+          `"${user.name}"`,
+          user.email,
+          user.role,
+          `"${(user.groups || []).join(';')}"`
+        ].join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.href) {
+        URL.revokeObjectURL(link.href);
+    }
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.setAttribute('download', 'users.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const renderGroupsCell = (user: User) => {
     const groupCount = user.groups?.length || 0;
     if (groupCount === 0) {
@@ -180,15 +218,34 @@ export function UserManagement() {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>User Accounts</CardTitle>
-            <CardDescription>Manage all user accounts in the system.</CardDescription>
-          </div>
-          <Button onClick={handleAddNew}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Add New User
-          </Button>
+        <CardHeader>
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                <div>
+                    <CardTitle>User Accounts</CardTitle>
+                    <CardDescription>Manage all user accounts in the system.</CardDescription>
+                </div>
+                 <div className="flex gap-2">
+                    <Button variant="outline" disabled>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Import
+                    </Button>
+                    <Button variant="outline" onClick={handleExportCSV}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Export
+                    </Button>
+                    <Button onClick={handleAddNew}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Add New User
+                    </Button>
+                </div>
+            </div>
+             <div className="mt-4">
+                <Input 
+                    placeholder="Filter by name or email..."
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                />
+            </div>
         </CardHeader>
         <CardContent>
           <div className="border rounded-lg">
@@ -209,14 +266,14 @@ export function UserManagement() {
                         <TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell>
                       </TableRow>
                     ))
-                ) : users.length === 0 ? (
+                ) : filteredUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
                       No users found.
                     </TableCell>
                   </TableRow>
                 ) : (
-                    users.map((user) => (
+                    filteredUsers.map((user) => (
                     <TableRow key={user.id} className={user.id.startsWith('temp-') ? 'opacity-50' : ''}>
                         <TableCell className="font-medium">{user.name}</TableCell>
                         <TableCell className="hidden md:table-cell text-muted-foreground">{user.email}</TableCell>
@@ -302,5 +359,3 @@ export function UserManagement() {
     </>
   );
 }
-
-    
