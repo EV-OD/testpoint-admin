@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { MoreHorizontal, PlusCircle, Trash2, Edit, FileQuestion, Send, CheckCircle, Circle, ArchiveRestore, Search, X } from 'lucide-react';
 import { TestForm } from './TestForm';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, addMinutes } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -69,8 +69,12 @@ export function TestManagement() {
       
       const now = new Date();
       const updatedTests = data.map((test: Test) => {
-        if (test.status === 'published' && new Date(test.date_time) < now) {
-          return { ...test, status: 'completed' };
+        if (test.status === 'published' ) {
+            const testStart = new Date(test.date_time);
+            const testEnd = addMinutes(testStart, test.time_limit);
+            if (testEnd < now) {
+                 return { ...test, status: 'completed' };
+            }
         }
         return test;
       });
@@ -89,7 +93,9 @@ export function TestManagement() {
     try {
       const response = await fetch('/api/groups');
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to fetch groups');
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch groups');
+      }
       setAllGroups(data);
     } catch (error: any) {
       toast({ title: 'Error fetching groups', description: error.message, variant: 'destructive' });
@@ -450,3 +456,5 @@ export function TestManagement() {
     </>
   );
 }
+
+    
