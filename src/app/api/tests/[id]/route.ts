@@ -15,7 +15,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!id || !name || !group_id || !time_limit || !question_count || !date_time) {
+    if (!id || !name || !group_id || !time_limit || question_count === undefined || !date_time) {
         return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
     }
 
@@ -47,7 +47,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         group_id,
         time_limit,
         question_count,
-        date_time,
+        date_time: new Date(date_time),
     });
 
     return NextResponse.json({ message: 'Test updated successfully' });

@@ -96,7 +96,8 @@ export async function GET(request: NextRequest) {
         // A teacher can see tests they created OR tests assigned to groups they are a part of.
         const teacherGroupIds: string[] = [];
         groupsSnapshot.forEach(doc => {
-            if (doc.data().userIds?.includes(decodedToken.uid)) {
+            const groupData = doc.data();
+            if (Array.isArray(groupData.userIds) && groupData.userIds.includes(decodedToken.uid)) {
                 teacherGroupIds.push(doc.id);
             }
         });
