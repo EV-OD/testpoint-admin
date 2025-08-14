@@ -5,10 +5,23 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Question, Test, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, ArrowLeft, Loader2, CheckCircle, Edit } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, CheckCircle, Edit, Upload } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { QuestionItem, type SaveStatus } from './QuestionItem';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import Papa from 'papaparse';
+
+type CsvQuestion = {
+  text: string;
+  option1: string;
+  option2: string;
+  option3: string;
+  option4: string;
+  correctOptionIndex: string;
+}
 
 export function QuestionManagement() {
   const router = useRouter();
@@ -21,6 +34,11 @@ export function QuestionManagement() {
   const [user, setUser] = useState<User | null>(null);
   const [questionStatuses, setQuestionStatuses] = useState<Record<string, SaveStatus>>({});
   const { toast } = useToast();
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importingQuestions, setImportingQuestions] = useState<Partial<Question>[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -52,39 +70,42 @@ export function QuestionManagement() {
     }
   }, [testId, toast]);
 
-  const fetchQuestions = useCallback(async () => {
+  const fetchQuestions = useCallback(async (isInitial = false) => {
     if (!testId) return;
-    setLoading(true);
+    if (isInitial) setLoading(true);
     try {
       const response = await fetch(`/api/tests/${testId}/questions`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Failed to fetch questions');
       setQuestions(data);
-      const initialStatuses: Record<string, SaveStatus> = {};
-      data.forEach((q: Question) => {
-        initialStatuses[q.id] = 'saved';
-      });
-      setQuestionStatuses(initialStatuses);
+      if (isInitial) {
+        const initialStatuses: Record<string, SaveStatus> = {};
+        data.forEach((q: Question) => {
+            initialStatuses[q.id] = 'saved';
+        });
+        setQuestionStatuses(initialStatuses);
+      }
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   }, [testId, toast]);
 
   useEffect(() => {
     fetchTestDetails();
-    fetchQuestions();
+    fetchQuestions(true);
   }, [fetchTestDetails, fetchQuestions]);
   
  const handleAddQuestion = async () => {
     const tempId = `temp-${Date.now()}`;
-    const newQuestionData = {
+    const newQuestionData: Omit<Question, 'id'> = {
       text: 'New Question',
       options: [
-        { id: `${Date.now()}-1`, text: 'Option 1', isCorrect: true },
-        { id: `${Date.now()}-2`, text: 'Option 2', isCorrect: false },
+        { id: `${Date.now()}-1`, text: 'Option 1' },
+        { id: `${Date.now()}-2`, text: 'Option 2' },
       ],
+      correctOptionIndex: 0
     };
 
     const optimisticQuestion: Question = {
@@ -145,6 +166,7 @@ export function QuestionManagement() {
         throw new Error(errorData.message || 'Failed to delete question');
       }
       toast({ title: 'Success', description: 'Question deleted successfully.' });
+      await fetchTestDetails();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
       setQuestions(originalQuestions);
@@ -158,6 +180,78 @@ export function QuestionManagement() {
     if (statuses.every(s => s === 'saved')) return 'all_saved';
     return 'idle';
   }, [questionStatuses]);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setImportError(null);
+      Papa.parse<CsvQuestion>(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (result) => {
+          const requiredHeaders = ['text', 'option1', 'option2', 'correctOptionIndex'];
+          const headers = result.meta.fields || [];
+          const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+
+          if (missingHeaders.length > 0) {
+            setImportError(`Missing required CSV columns: ${missingHeaders.join(', ')}`);
+            setImportingQuestions([]);
+            return;
+          }
+          
+          const parsedQuestions = result.data.map(row => {
+            const options = [row.option1, row.option2, row.option3, row.option4]
+                .filter(o => o)
+                .map((o, i) => ({ id: `import-opt-${i}`, text: o }));
+
+            return {
+                text: row.text,
+                options,
+                correctOptionIndex: parseInt(row.correctOptionIndex, 10) - 1 // CSV is 1-based, our index is 0-based
+            }
+          });
+          setImportingQuestions(parsedQuestions);
+        },
+        error: (error) => {
+            setImportError(`CSV parsing error: ${error.message}`);
+            setImportingQuestions([]);
+        }
+      });
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!importingQuestions.length) return;
+    setIsImporting(true);
+
+    try {
+        const response = await fetch(`/api/tests/${testId}/questions/bulk`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({questions: importingQuestions}),
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.message || 'Bulk import failed');
+        }
+
+        toast({
+            title: 'Import Complete',
+            description: `${result.successCount} questions imported successfully.`
+        });
+
+        setIsImportModalOpen(false);
+        setImportingQuestions([]);
+        await fetchQuestions();
+        await fetchTestDetails();
+    } catch (error: any) {
+        toast({ title: 'Import Error', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsImporting(false);
+    }
+  };
+
 
   const renderGlobalStatus = () => {
     switch(globalSaveStatus) {
@@ -191,7 +285,7 @@ export function QuestionManagement() {
             <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-                <h1 className="text-2xl font-bold">Manage Questions</h1>
+                <h1 className="text-2xl font-bold">Manage Questions ({test?.question_count || 0})</h1>
                 <div className="text-muted-foreground">For test: {test?.name || <Skeleton className="h-5 w-32 inline-block" />}</div>
             </div>
         </div>
@@ -219,17 +313,69 @@ export function QuestionManagement() {
         {questions.length === 0 && !loading && (
              <div className="text-center py-12 border-2 border-dashed rounded-lg">
                 <p className="text-muted-foreground">No questions yet.</p>
-                <p>Click "Add New Question" to get started.</p>
+                <p>Click "Add New Question" or "Import from CSV" to get started.</p>
             </div>
         )}
 
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-4">
              <Button onClick={handleAddQuestion}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add New Question
             </Button>
+            <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Import from CSV
+            </Button>
         </div>
       </div>
+      <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+        <DialogContent className="sm:max-w-[625px]">
+            <DialogHeader>
+            <DialogTitle>Import Questions from CSV</DialogTitle>
+            <DialogDescription>
+                Select a CSV file to bulk-import questions. The file must contain columns: `text`, `option1`, `option2`, `option3`, `option4`, and `correctOptionIndex` (1-based).
+            </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+                <Input type="file" accept=".csv" onChange={handleFileChange} />
+                {importError && (
+                    <p className="text-sm text-destructive">{importError}</p>
+                )}
+                {importingQuestions.length > 0 && (
+                    <>
+                        <h4 className="font-medium">Questions to Import ({importingQuestions.length})</h4>
+                        <div className="max-h-60 overflow-y-auto border rounded-md">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Text</TableHead>
+                                        <TableHead>Options</TableHead>
+                                        <TableHead>Correct</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {importingQuestions.map((q, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell className="max-w-xs truncate">{q.text}</TableCell>
+                                            <TableCell>{q.options?.length}</TableCell>
+                                            <TableCell>{(q.correctOptionIndex ?? 0) + 1}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </>
+                )}
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setIsImportModalOpen(false)}>Cancel</Button>
+                <Button onClick={handleConfirmImport} disabled={isImporting || importingQuestions.length === 0 || !!importError}>
+                    {isImporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Import {importingQuestions.length > 0 ? `${importingQuestions.length} Questions` : ''}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

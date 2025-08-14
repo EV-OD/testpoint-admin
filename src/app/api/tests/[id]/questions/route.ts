@@ -10,16 +10,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
   try {
     const questionData: Omit<Question, 'id'> = await request.json();
 
-    if (!questionData.text || !Array.isArray(questionData.options)) {
+    if (!questionData.text || !Array.isArray(questionData.options) || questionData.correctOptionIndex === undefined) {
       return NextResponse.json({ message: 'Missing or invalid required fields' }, { status: 400 });
     }
     
-    // Ensure one option is correct if options are provided
     if (questionData.options.length > 0) {
-        const hasCorrectOption = questionData.options.some(opt => opt.isCorrect);
-        if (!hasCorrectOption && questionData.options.some(opt => opt.text)) {
-            // If there are options with text, one must be correct
-             return NextResponse.json({ message: 'One option must be marked as correct.' }, { status: 400 });
+        if (questionData.correctOptionIndex < 0 || questionData.correctOptionIndex >= questionData.options.length) {
+            return NextResponse.json({ message: 'Correct option index is out of bounds.' }, { status: 400 });
         }
     }
 

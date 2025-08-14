@@ -59,6 +59,7 @@ export function QuestionItem({ testId, question, questionNumber, onDelete, onSta
             body: JSON.stringify({
               text: updatedQuestion.text,
               options: updatedQuestion.options,
+              correctOptionIndex: updatedQuestion.correctOptionIndex,
             }),
           });
           if (!response.ok) {
@@ -76,13 +77,11 @@ export function QuestionItem({ testId, question, questionNumber, onDelete, onSta
 
   useEffect(() => {
     // Only update local state if the incoming question is truly different
-    // This check is important to prevent overwriting user input, especially during initial hydration
     if (JSON.stringify(localQuestion) !== JSON.stringify(question)) {
        setLocalQuestion(question);
-       // When props change, we assume it's saved unless told otherwise.
        updateStatus('saved');
     }
-  }, [question]);
+  }, [question, localQuestion]);
 
   const handleLocalChange = (newQuestion: Question) => {
     setLocalQuestion(newQuestion);
@@ -99,30 +98,46 @@ export function QuestionItem({ testId, question, questionNumber, onDelete, onSta
     handleLocalChange({ ...localQuestion, options: newOptions });
   };
   
-  const handleCorrectOptionChange = (correctOptionId: string) => {
-    const newOptions = localQuestion.options.map(opt => ({ ...opt, isCorrect: opt.id === correctOptionId }));
-    handleLocalChange({ ...localQuestion, options: newOptions });
+  const handleCorrectOptionChange = (optionId: string) => {
+    const newIndex = localQuestion.options.findIndex(opt => opt.id === optionId);
+    if (newIndex !== -1) {
+      handleLocalChange({ ...localQuestion, correctOptionIndex: newIndex });
+    }
   };
   
   const handleAddOption = () => {
     const newOption: Option = {
       id: `temp-${Date.now()}`, 
       text: '',
-      isCorrect: localQuestion.options.length === 0,
     };
     const updatedOptions = [...localQuestion.options, newOption];
-    handleLocalChange({ ...localQuestion, options: updatedOptions });
+    const newQuestion = { ...localQuestion, options: updatedOptions };
+    if (updatedOptions.length === 1) {
+        newQuestion.correctOptionIndex = 0;
+    }
+    handleLocalChange(newQuestion);
   };
   
   const handleRemoveOption = (optionId: string) => {
     let newOptions = localQuestion.options.filter(opt => opt.id !== optionId);
-    if (!newOptions.some(o => o.isCorrect) && newOptions.length > 0) {
-        newOptions[0].isCorrect = true;
+    let newCorrectIndex = localQuestion.correctOptionIndex;
+
+    const removedOptionIndex = localQuestion.options.findIndex(o => o.id === optionId);
+
+    if (newOptions.length > 0) {
+        if (removedOptionIndex === newCorrectIndex) {
+            newCorrectIndex = 0;
+        } else if (removedOptionIndex < newCorrectIndex) {
+            newCorrectIndex -= 1;
+        }
+    } else {
+        newCorrectIndex = 0;
     }
-    handleLocalChange({ ...localQuestion, options: newOptions });
+    
+    handleLocalChange({ ...localQuestion, options: newOptions, correctOptionIndex: newCorrectIndex });
   };
   
-  const correctOptionId = localQuestion.options.find(o => o.isCorrect)?.id;
+  const correctOptionId = localQuestion.options[localQuestion.correctOptionIndex]?.id;
 
   const renderStatusIndicator = () => {
     switch (saveStatus) {
@@ -174,14 +189,14 @@ export function QuestionItem({ testId, question, questionNumber, onDelete, onSta
         />
         
         <RadioGroup onValueChange={handleCorrectOptionChange} value={correctOptionId} className="space-y-2">
-            {localQuestion.options.map((option) => (
+            {localQuestion.options.map((option, index) => (
               <div key={option.id} className="flex items-center gap-2">
                 <RadioGroupItem value={option.id} id={`${localQuestion.id}-${option.id}`} />
                 <Input
                   value={option.text}
                   onChange={e => handleOptionTextChange(option.id, e.target.value)}
-                  placeholder="Option text"
-                  className={cn(option.isCorrect && "font-semibold")}
+                  placeholder={`Option ${index + 1}`}
+                  className={cn(localQuestion.correctOptionIndex === index && "font-semibold")}
                 />
                 <Button variant="ghost" size="icon" onClick={() => handleRemoveOption(option.id)} disabled={localQuestion.options.length <= 1}>
                   <X className="h-4 w-4" />

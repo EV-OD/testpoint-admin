@@ -8,13 +8,25 @@ export const runtime = 'nodejs';
 export async function PUT(request: Request, { params }: { params: { id: string, questionId: string } }) {
     const { id: testId, questionId } = params;
     try {
-        const questionData: Partial<Question> = await request.json();
+        const questionData: Partial<Omit<Question, 'id'>> = await request.json();
 
         if (!questionData) {
             return NextResponse.json({ message: 'Missing question data' }, { status: 400 });
         }
+        
+        const updateData: any = {};
+        if (questionData.text) {
+            updateData.text = questionData.text;
+        }
+        if (questionData.options) {
+            updateData.options = questionData.options;
+        }
+        if (questionData.correctOptionIndex !== undefined) {
+            updateData.correctOptionIndex = questionData.correctOptionIndex;
+        }
 
-        await adminDb.collection('tests').doc(testId).collection('questions').doc(questionId).update(questionData);
+
+        await adminDb.collection('tests').doc(testId).collection('questions').doc(questionId).update(updateData);
 
         return NextResponse.json({ message: 'Question updated successfully' });
     } catch (error: any) {

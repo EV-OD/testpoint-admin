@@ -69,6 +69,8 @@ export function TestManagement() {
         return test;
       });
 
+      console.log(updatedTests)
+
       setTests(updatedTests);
     } catch (error: any) {
       toast({ title: 'Error fetching tests', description: error.message, variant: 'destructive' });
