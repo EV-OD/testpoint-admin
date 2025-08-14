@@ -47,7 +47,7 @@ export function TestManagement() {
         fetchProfile();
     }, []);
 
-    const isAdmin = userRole === 'admin';
+    const canManageTests = userRole === 'admin' || userRole === 'teacher';
 
   const fetchTests = useCallback(async () => {
     if (tests.length === 0) {
@@ -78,10 +78,10 @@ export function TestManagement() {
 
   useEffect(() => {
     fetchTests();
-    if (isAdmin) {
+    if (canManageTests) {
       fetchGroups();
     }
-  }, [fetchTests, fetchGroups, isAdmin]);
+  }, [fetchTests, fetchGroups, canManageTests]);
 
   const handleAddNew = () => {
     setSelectedTest(undefined);
@@ -94,7 +94,7 @@ export function TestManagement() {
   };
 
   const handleViewQuestions = (testId: string) => {
-    const path = isAdmin ? `/dashboard/tests/${testId}` : `/teacher/tests/${testId}`;
+    const path = userRole === 'admin' ? `/dashboard/tests/${testId}` : `/teacher/tests/${testId}`;
     router.push(path);
   };
   
@@ -163,7 +163,7 @@ export function TestManagement() {
             <CardTitle>Tests</CardTitle>
             <CardDescription>Schedule and manage tests for different groups.</CardDescription>
           </div>
-          {isAdmin && (
+          {canManageTests && (
             <Button onClick={handleAddNew}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Create New Test
@@ -194,7 +194,7 @@ export function TestManagement() {
                     </TableRow>
                 ) : (
                     <>
-                    {isSubmitting && !isFormOpen && isAdmin && renderSkeleton()}
+                    {isSubmitting && !isFormOpen && canManageTests && renderSkeleton()}
                     {tests.map((test) => (
                     <TableRow key={test.id} className="cursor-pointer" onClick={() => handleViewQuestions(test.id)}>
                         <TableCell className="font-medium">{test.name}</TableCell>
@@ -216,7 +216,7 @@ export function TestManagement() {
                                 <FileQuestion className="mr-2 h-4 w-4" />
                                 View/Edit Questions
                             </DropdownMenuItem>
-                            {isAdmin && (
+                            {canManageTests && (
                                 <>
                                 <DropdownMenuItem onClick={() => handleEditDetails(test)}>
                                     <Edit className="mr-2 h-4 w-4" />
@@ -261,7 +261,7 @@ export function TestManagement() {
           </div>
         </CardContent>
       </Card>
-      {isFormOpen && isAdmin && (
+      {isFormOpen && canManageTests && (
         <TestForm
           test={selectedTest}
           allGroups={allGroups}

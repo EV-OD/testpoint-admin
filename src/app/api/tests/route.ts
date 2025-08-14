@@ -1,24 +1,35 @@
 
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type { Test } from '@/lib/types';
 import admin from 'firebase-admin';
+import type { NextRequest } from 'next/server';
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const { name, group_id, time_limit, question_count, date_time } = await request.json();
+    const sessionCookie = request.cookies.get('session')?.value;
+
+    if (!sessionCookie) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     if (!name || !group_id || !time_limit || !question_count || !date_time) {
       return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
     }
+    
+    const decodedToken = await adminAuth.verifySessionCookie(sessionCookie, true);
+    const test_maker = decodedToken.uid;
+
 
     const testRef = await adminDb.collection('tests').add({
       name,
       group_id,
       time_limit,
       question_count,
+      test_maker,
       date_time: new Date(date_time),
       created_at: new Date(),
     });
@@ -38,9 +49,23 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const testsSnapshot = await adminDb.collection('tests').orderBy('date_time', 'desc').get();
+    const sessionCookie = request.cookies.get('session')?.value;
+    if (!sessionCookie) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const decodedToken = await adminAuth.verifySessionCookie(sessionCookie, true);
+    const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+    const userRole = userDoc.data()?.role;
+
+    let testsQuery = adminDb.collection('tests').orderBy('date_time', 'desc');
+
+    if (userRole === 'teacher') {
+        testsQuery = testsQuery.where('test_maker', '==', decodedToken.uid);
+    }
+    
+    const testsSnapshot = await testsQuery.get();
     
     // Fetch all groups to map group_id to group name
     const groupsSnapshot = await adminDb.collection('groups').get();

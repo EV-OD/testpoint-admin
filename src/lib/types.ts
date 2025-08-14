@@ -20,6 +20,7 @@ export type Test = {
   time_limit: number; // in minutes
   question_count: number;
   date_time: string; // ISO 8601 format
+  test_maker?: string; // UID of the user who created the test
 };
 
 export type Option = {
