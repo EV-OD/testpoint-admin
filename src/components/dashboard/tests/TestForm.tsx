@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useForm } from 'react-hook-form';
@@ -19,7 +20,7 @@ const testFormSchema = z.object({
   name: z.string().min(3, { message: "Test name must be at least 3 characters." }),
   group_id: z.string({ required_error: "Please select a group." }),
   time_limit: z.coerce.number().min(1, { message: "Time limit must be at least 1 minute." }),
-  question_count: z.coerce.number().min(1, { message: "Must have at least 1 question." }),
+  question_count: z.coerce.number().min(0, { message: "Question count cannot be negative." }).default(0),
   date_time: z.date({ required_error: "A date and time for the test is required." }),
 });
 
@@ -28,7 +29,7 @@ type TestFormValues = z.infer<typeof testFormSchema>;
 interface TestFormProps {
   test?: Test;
   allGroups: Group[];
-  onSave: (test: Omit<Test, 'id'> & { id?: string }) => void;
+  onSave: (test: Omit<Test, 'id' | 'status'> & { id?: string }) => void;
   onClose: () => void;
 }
 
@@ -39,7 +40,7 @@ export function TestForm({ test, allGroups, onSave, onClose }: TestFormProps) {
         name: test?.name || '',
         group_id: test?.group_id || undefined,
         time_limit: test?.time_limit || 60,
-        question_count: test?.question_count || 25,
+        question_count: test?.question_count || 0,
         date_time: test?.date_time ? new Date(test.date_time) : new Date(),
     },
   });
@@ -54,7 +55,7 @@ export function TestForm({ test, allGroups, onSave, onClose }: TestFormProps) {
         <DialogHeader>
           <DialogTitle>{test ? 'Edit Test' : 'Create New Test'}</DialogTitle>
           <DialogDescription>
-            {test ? 'Update the details for this test.' : 'Enter the details for the new test.'}
+            {test ? 'Update the details for this draft test.' : 'Enter the details for the new test. You can add questions after creating it.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -115,8 +116,11 @@ export function TestForm({ test, allGroups, onSave, onClose }: TestFormProps) {
                   <FormItem>
                     <FormLabel>No. of Questions</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} />
+                      <Input type="number" {...field} readOnly/>
                     </FormControl>
+                    <FormDescription>
+                        This is updated automatically.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

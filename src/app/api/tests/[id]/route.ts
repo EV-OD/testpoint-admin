@@ -30,9 +30,17 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         return NextResponse.json({ message: 'Test not found' }, { status: 404 });
     }
 
-    if (userRole !== 'admin' && testDoc.data()?.test_maker !== decodedToken.uid) {
-        return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const testData = testDoc.data();
+
+    if (userRole !== 'admin' && testData?.test_maker !== decodedToken.uid) {
+        return NextResponse.json({ message: 'Forbidden: You are not the owner of this test.' }, { status: 403 });
     }
+    
+    // Prevent edits if the test is not in 'draft' status
+    if (testData?.status !== 'draft') {
+        return NextResponse.json({ message: 'Cannot edit a test that is not in draft status.' }, { status: 403 });
+    }
+
 
     await testRef.update({
         name,
@@ -71,8 +79,15 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
         return NextResponse.json({ message: 'Test not found' }, { status: 404 });
     }
     
-    if (userRole !== 'admin' && testDoc.data()?.test_maker !== decodedToken.uid) {
+    const testData = testDoc.data();
+
+    if (userRole !== 'admin' && testData?.test_maker !== decodedToken.uid) {
         return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    }
+
+    // Only allow deletion if the test is a draft
+    if (testData?.status !== 'draft') {
+        return NextResponse.json({ message: 'Cannot delete a test that is not a draft.' }, { status: 403 });
     }
     
     await adminDb.collection('tests').doc(id).delete();

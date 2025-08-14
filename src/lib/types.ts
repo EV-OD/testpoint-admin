@@ -21,6 +21,7 @@ export type Test = {
   question_count: number;
   date_time: string; // ISO 8601 format
   test_maker?: string; // UID of the user who created the test
+  status: 'draft' | 'published' | 'completed';
 };
 
 export type Option = {
@@ -30,7 +31,7 @@ export type Option = {
 };
 
 export type Question = {
-  id: string;
+  id:string;
   text: string;
   options: Option[];
 };

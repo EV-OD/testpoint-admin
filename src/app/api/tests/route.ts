@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       test_maker,
       date_time: new Date(date_time),
       created_at: new Date(),
+      status: 'draft', // New tests are always drafts
     });
 
     const newTest = await testRef.get();
@@ -41,7 +42,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
         id: testRef.id, 
         ...testData,
-        date_time: (testData.date_time as any).toDate().toISOString()
+        date_time: (testData.date_time as any).toDate().toISOString(),
+        status: 'draft',
     }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating test:', error);
@@ -67,7 +69,6 @@ export async function GET(request: NextRequest) {
     
     const testsSnapshot = await testsQuery.get();
     
-    // Fetch all groups to map group_id to group name
     const groupsSnapshot = await adminDb.collection('groups').get();
     const groupsMap = new Map();
     groupsSnapshot.forEach(doc => {
@@ -78,13 +79,12 @@ export async function GET(request: NextRequest) {
       const data = doc.data();
       const group = groupsMap.get(data.group_id);
       
-      // Handle both Timestamp and string dates
       let isoDateTime;
-      if (data.date_time?.toDate) { // It's a Firestore Timestamp
+      if (data.date_time?.toDate) {
         isoDateTime = data.date_time.toDate().toISOString();
-      } else if (typeof data.date_time === 'string') { // It's already a string
+      } else if (typeof data.date_time === 'string') {
         isoDateTime = data.date_time;
-      } else { // Fallback for other cases
+      } else {
         isoDateTime = new Date().toISOString();
       }
 
