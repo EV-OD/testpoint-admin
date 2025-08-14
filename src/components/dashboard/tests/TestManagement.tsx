@@ -69,7 +69,8 @@ export function TestManagement() {
       
       const now = new Date();
       const updatedTests = data.map((test: Test) => {
-        if (test.status === 'published' ) {
+        if (test.status === 'published') {
+            // Ensure date is parsed correctly from ISO string
             const testStart = new Date(test.date_time);
             const testEnd = addMinutes(testStart, test.time_limit);
             if (testEnd < now) {
@@ -98,7 +99,7 @@ export function TestManagement() {
       }
       setAllGroups(data);
     } catch (error: any) {
-      toast({ title: 'Error fetching groups', description: error.message, variant: 'destructive' });
+        toast({ title: 'Error fetching groups', description: error.message, variant: 'destructive' });
     }
   }, [toast]);
 
@@ -456,5 +457,3 @@ export function TestManagement() {
     </>
   );
 }
-
-    
