@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import type { Test } from '@/lib/types';
+import admin from 'firebase-admin';
 
 export const runtime = 'nodejs';
 
@@ -17,11 +18,19 @@ export async function POST(request: Request) {
       group_id,
       time_limit,
       question_count,
-      date_time: new Date(date_time).toISOString(),
-      created_at: new Date().toISOString(),
+      date_time: new Date(date_time),
+      created_at: new Date(),
     });
 
-    return NextResponse.json({ id: testRef.id, name, group_id, time_limit, question_count, date_time }, { status: 201 });
+    const newTest = await testRef.get();
+    const testData = newTest.data() as Test;
+
+
+    return NextResponse.json({ 
+        id: testRef.id, 
+        ...testData,
+        date_time: (testData.date_time as any).toDate().toISOString()
+    }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating test:', error);
     return NextResponse.json({ message: 'Failed to create test', error: error.message }, { status: 500 });
@@ -40,11 +49,12 @@ export async function GET() {
     });
     
     const tests = testsSnapshot.docs.map(doc => {
-      const data = doc.data() as Test;
+      const data = doc.data() as Test & { date_time: admin.firestore.Timestamp };
       const group = groupsMap.get(data.group_id);
       return {
         ...data,
         id: doc.id,
+        date_time: data.date_time.toDate().toISOString(),
         groups: group ? { name: group.name } : null,
       };
     });

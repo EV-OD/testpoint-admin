@@ -27,7 +27,7 @@ export function TestManagement() {
   const [userRole, setUserRole] = useState<User['role'] | null>(null);
   const { toast } = useToast();
   const router = useRouter();
-  const isAdmin = userRole === 'admin';
+  
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -36,13 +36,18 @@ export function TestManagement() {
                 if (res.ok) {
                     const data = await res.json();
                     setUserRole(data.role);
+                } else {
+                    setUserRole('teacher');
                 }
             } catch (error) {
                 console.error('Failed to fetch profile', error);
+                setUserRole('teacher');
             }
         };
         fetchProfile();
     }, []);
+
+    const isAdmin = userRole === 'admin';
 
   const fetchTests = useCallback(async () => {
     if (tests.length === 0) {
@@ -128,7 +133,7 @@ export function TestManagement() {
         setIsFormOpen(false);
         setSelectedTest(undefined);
         if (!isEditing) {
-          router.push(`/dashboard/tests/${data.id}`);
+          handleViewQuestions(data.id)
         } else {
           await fetchTests();
         }
