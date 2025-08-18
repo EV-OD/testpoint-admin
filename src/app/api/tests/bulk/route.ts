@@ -23,69 +23,71 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Missing required fields: testIds and action' }, { status: 400 });
     }
 
-    const batch = adminDb.batch();
-    let successCount = 0;
     const errors: { id: string; reason: string }[] = [];
+    let successCount = 0;
 
     for (const testId of testIds) {
-      const testRef = adminDb.collection('tests').doc(testId);
-      const testDoc = await testRef.get();
+        const testRef = adminDb.collection('tests').doc(testId);
+        try {
+            await adminDb.runTransaction(async (transaction) => {
+                const testDoc = await transaction.get(testRef);
 
-      if (!testDoc.exists) {
-        errors.push({ id: testId, reason: 'Test not found.' });
-        continue;
-      }
-      
-      const testData = testDoc.data();
+                if (!testDoc.exists) {
+                    throw new Error('Test not found.');
+                }
+                
+                const testData = testDoc.data();
 
-      // Permission check: admin or owner
-      if (userRole !== 'admin' && testData?.test_maker !== decodedToken.uid) {
-          errors.push({ id: testId, reason: 'Forbidden' });
-          continue;
-      }
-      
-      try {
-        switch (action) {
-          case 'publish':
-            if (testData?.status === 'draft') {
-              if (testData?.question_count > 0) {
-                 batch.update(testRef, { status: 'published' });
-                 successCount++;
-              } else {
-                 errors.push({ id: testId, reason: 'Test must have at least one question to be published.' });
-              }
-            } else {
-               errors.push({ id: testId, reason: 'Only draft tests can be published.' });
-            }
-            break;
-            
-          case 'revert_to_draft':
-            if (testData?.status === 'published') {
-               batch.update(testRef, { status: 'draft' });
-               successCount++;
-            } else {
-                errors.push({ id: testId, reason: 'Only published tests can be reverted to draft.' });
-            }
-            break;
+                // Permission check: admin or owner
+                if (userRole !== 'admin' && testData?.test_maker !== decodedToken.uid) {
+                    throw new Error('Forbidden');
+                }
+                
+                switch (action) {
+                    case 'publish':
+                        if (testData?.status === 'draft') {
+                            if (testData?.question_count > 0) {
+                                transaction.update(testRef, { status: 'published' });
+                            } else {
+                                throw new Error('Test must have at least one question to be published.');
+                            }
+                        } else {
+                            throw new Error('Only draft tests can be published.');
+                        }
+                        break;
+                    
+                    case 'revert_to_draft':
+                        if (testData?.status === 'published' || testData?.status === 'ongoing' || testData?.status === 'completed') {
+                           transaction.update(testRef, { status: 'draft' });
+                           // Also delete all test sessions for this test
+                           const sessionsSnapshot = await adminDb.collection('test_sessions').where('test_id', '==', testId).get();
+                           if (!sessionsSnapshot.empty) {
+                               sessionsSnapshot.docs.forEach(doc => {
+                                   transaction.delete(doc.ref);
+                               });
+                           }
+                        } else {
+                            throw new Error('Only published, ongoing, or completed tests can be reverted to draft.');
+                        }
+                        break;
 
-          case 'delete':
-            if (testData?.status === 'draft') {
-               batch.delete(testRef);
-               successCount++;
-            } else {
-                errors.push({ id: testId, reason: 'Only draft tests can be deleted.' });
-            }
-            break;
-            
-          default:
-            errors.push({ id: testId, reason: 'Invalid action specified.' });
+                    case 'delete':
+                        if (testData?.status === 'draft') {
+                           transaction.delete(testRef);
+                        } else {
+                            throw new Error('Only draft tests can be deleted.');
+                        }
+                        break;
+                    
+                    default:
+                        throw new Error('Invalid action specified.');
+                }
+            });
+            successCount++;
+        } catch (e: any) {
+            errors.push({ id: testId, reason: e.message || 'An unknown error occurred.' });
         }
-      } catch (e: any) {
-         errors.push({ id: testId, reason: e.message || 'An unknown error occurred.' });
-      }
     }
-
-    await batch.commit();
 
     return NextResponse.json({
       message: 'Bulk action completed.',

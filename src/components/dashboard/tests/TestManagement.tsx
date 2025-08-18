@@ -273,7 +273,7 @@ export function TestManagement() {
             </Button>
           </>
         )}
-        {activeTab === 'ongoing' && (
+        {(activeTab === 'ongoing' || activeTab === 'completed') && (
            <Button size="sm" onClick={() => handleBulkAction(selectedIds, 'revert_to_draft')}>
               <ArchiveRestore className="mr-2 h-4 w-4" /> Revert to Draft
             </Button>
@@ -373,7 +373,7 @@ export function TestManagement() {
                             </AlertDialog>
                           </>
                         )}
-                        {status === 'ongoing' && (
+                        {(status === 'ongoing' || status === 'completed') && (
                           <>
                            <DropdownMenuItem onClick={() => handleBulkAction([test.id], 'revert_to_draft')}>
                                 <ArchiveRestore className="mr-2 h-4 w-4" />
@@ -384,12 +384,6 @@ export function TestManagement() {
                              View Results
                           </DropdownMenuItem>
                           </>
-                        )}
-                        {status === 'completed' && (
-                           <DropdownMenuItem onClick={() => handleViewResults(test.id)}>
-                             <BarChart className="mr-2 h-4 w-4" />
-                             View Results
-                          </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
