@@ -510,7 +510,7 @@ export function TestManagement() {
           </Tabs>
         </CardContent>
       </Card>
-      {isFormOpe'n && canManageTests && (
+      {isFormOpen && canManageTests && (
         <TestForm
           test={selectedTest}
           allGroups={allGroups}
