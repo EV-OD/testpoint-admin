@@ -94,9 +94,7 @@ export function TestManagement() {
     try {
       const response = await fetch('/api/groups');
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to fetch groups');
-      }
+      if (!response.ok) throw new Error(data.message || 'Failed to fetch groups');
       setAllGroups(data);
     } catch (error: any) {
       toast({ title: 'Error fetching groups', description: error.message, variant: 'destructive' });
@@ -216,10 +214,11 @@ export function TestManagement() {
   };
 
   const filteredTests = useMemo(() => {
-    //add a guard here as tests can be undefined
-    if (!tests) {
-      return { draft: [], published: [], completed: [] };
+    const result = { draft: [], published: [], completed: [] };
+    if (!tests || !Array.isArray(tests)) {
+      return result;
     }
+
     let filtered = tests;
     if (textFilter) {
       filtered = filtered.filter(t => t.name.toLowerCase().includes(textFilter.toLowerCase()));
@@ -227,11 +226,12 @@ export function TestManagement() {
     if (groupFilter !== 'all') {
       filtered = filtered.filter(t => t.group_id === groupFilter);
     }
-    return {
-      draft: filtered.filter(t => t.status === 'draft'),
-      published: filtered.filter(t => t.status === 'published'),
-      completed: filtered.filter(t => t.status === 'completed'),
-    };
+    
+    result.draft = filtered.filter(t => t.status === 'draft');
+    result.published = filtered.filter(t => t.status === 'published');
+    result.completed = filtered.filter(t => t.status === 'completed');
+    
+    return result;
   }, [tests, textFilter, groupFilter]);
 
   const handleSelectAll = (e: boolean) => {
@@ -470,5 +470,7 @@ export function TestManagement() {
     </>
   );
 }
+
+    
 
     
