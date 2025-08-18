@@ -11,7 +11,7 @@ import { MoreHorizontal, PlusCircle, Trash2, Edit, FileQuestion, Send, CheckCirc
 import { TestForm } from './TestForm';
 import { useToast } from '@/hooks/use-toast';
 import { format, addMinutes, addHours } from 'date-fns';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -282,7 +282,7 @@ export function TestManagement() {
     );
   }
   
-  const renderTestTable = (testList: TestWithGroup[], status: Test['status'] | 'ongoing') => {
+  const renderTestTable = (testList: TestWithGroup[], status: TestStatus) => {
     const isAllSelected = testList.length > 0 && selectedIds.length === testList.length;
 
     return (
@@ -483,5 +483,3 @@ export function TestManagement() {
     </>
   );
 }
-
-    
