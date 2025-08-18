@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Trash2, Edit, FileQuestion, Send, CheckCircle, Circle, ArchiveRestore, Search, X } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Edit, FileQuestion, Send, CheckCircle, Circle, ArchiveRestore, Search, X, BarChart } from 'lucide-react';
 import { TestForm } from './TestForm';
 import { useToast } from '@/hooks/use-toast';
 import { format, addMinutes } from 'date-fns';
@@ -70,8 +70,8 @@ export function TestManagement() {
       const now = new Date();
       const updatedTests = data.map((test: Test) => {
         if (test.status === 'published') {
-            // Ensure date is parsed correctly from ISO string
             const testStart = new Date(test.date_time);
+            if (isNaN(testStart.getTime())) return test; // Invalid date
             const testEnd = addMinutes(testStart, test.time_limit);
             if (testEnd < now) {
                  return { ...test, status: 'completed' };
@@ -126,6 +126,11 @@ export function TestManagement() {
 
   const handleViewQuestions = (testId: string) => {
     const path = userRole === 'admin' ? `/dashboard/tests/${testId}` : `/teacher/tests/${testId}`;
+    router.push(path);
+  };
+
+   const handleViewResults = (testId: string) => {
+    const path = userRole === 'admin' ? `/dashboard/results/${testId}` : `/teacher/results/${testId}`;
     router.push(path);
   };
 
@@ -364,7 +369,8 @@ export function TestManagement() {
                            </DropdownMenuItem>
                         )}
                         {status === 'completed' && (
-                           <DropdownMenuItem>
+                           <DropdownMenuItem onClick={() => handleViewResults(test.id)}>
+                             <BarChart className="mr-2 h-4 w-4" />
                              View Results
                           </DropdownMenuItem>
                         )}
@@ -460,3 +466,4 @@ export function TestManagement() {
     </>
   );
 }
+

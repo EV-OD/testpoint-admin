@@ -1,4 +1,5 @@
 
+
 export type User = {
   id: string; 
   name: string;
@@ -35,3 +36,20 @@ export type Question = {
   options: Option[];
   correctOptionIndex: number;
 };
+
+export type TestSession = {
+    id: string;
+    test_id: string;
+    student_id: string;
+    student_name?: string; // populated from users collection
+    start_time: string;
+    end_time?: string;
+    final_score: number | null;
+    status: 'not_started' | 'in_progress' | 'completed' | 'submitted' | 'expired';
+    answers: {
+        [questionId: string]: {
+            selected_answer_index: number;
+            is_correct: boolean;
+        }
+    }
+}
