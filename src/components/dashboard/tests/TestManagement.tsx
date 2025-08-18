@@ -216,6 +216,10 @@ export function TestManagement() {
   };
 
   const filteredTests = useMemo(() => {
+    //add a guard here as tests can be undefined
+    if (!tests) {
+      return { draft: [], published: [], completed: [] };
+    }
     let filtered = tests;
     if (textFilter) {
       filtered = filtered.filter(t => t.name.toLowerCase().includes(textFilter.toLowerCase()));
@@ -467,3 +471,4 @@ export function TestManagement() {
   );
 }
 
+    
