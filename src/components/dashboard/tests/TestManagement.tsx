@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Trash2, Edit, FileQuestion, Send, CheckCircle, Circle, ArchiveRestore, Search, X, BarChart } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Edit, FileQuestion, Send, CheckCircle, Circle, ArchiveRestore, Search, X, BarChart, StopCircle } from 'lucide-react';
 import { TestForm } from './TestForm';
 import { useToast } from '@/hooks/use-toast';
 import { format, addMinutes, addHours } from 'date-fns';
@@ -73,7 +73,6 @@ export function TestManagement() {
             const testStart = new Date(test.date_time);
             if (isNaN(testStart.getTime())) return { ...test, status: 'ongoing'};
             
-            // Add a 6-hour grace period before moving to completed
             const testEndWithGrace = addHours(addMinutes(testStart, test.time_limit), 6);
             
             if (testEndWithGrace < now) {
@@ -154,7 +153,23 @@ export function TestManagement() {
     await handleBulkAction([test.id], 'publish');
   };
 
-  const handleBulkAction = async (testIds: string[], action: 'publish' | 'revert_to_draft' | 'delete') => {
+  const handleEndQuiz = async (testId: string) => {
+      try {
+        const response = await fetch(`/api/tests/${testId}/end`, {
+            method: 'POST',
+        });
+        if (!response.ok) {
+            const result = await response.json();
+            throw new Error(result.message || 'Failed to end the quiz.');
+        }
+        toast({ title: 'Success', description: 'The quiz has been ended and moved to completed.' });
+        await fetchTests();
+      } catch (e: any) {
+        toast({ title: 'Error', description: e.message, variant: 'destructive' });
+      }
+  }
+
+  const handleBulkAction = async (testIds: string[], action: 'publish' | 'revert_to_draft' | 'delete' | 'end_now') => {
     if (testIds.length === 0) return;
     try {
       const response = await fetch('/api/tests/bulk', {
@@ -278,6 +293,11 @@ export function TestManagement() {
               <ArchiveRestore className="mr-2 h-4 w-4" /> Revert to Draft
             </Button>
         )}
+        {activeTab === 'ongoing' && (
+             <Button size="sm" variant="destructive" onClick={() => handleBulkAction(selectedIds, 'end_now')}>
+              <StopCircle className="mr-2 h-4 w-4" /> End Now
+            </Button>
+        )}
       </div>
     );
   }
@@ -385,6 +405,30 @@ export function TestManagement() {
                           </DropdownMenuItem>
                           </>
                         )}
+                         {status === 'ongoing' && (
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" className="w-full justify-start text-sm text-destructive hover:text-destructive p-2 m-0 h-full">
+                                        <StopCircle className="mr-2 h-4 w-4" />
+                                        End Quiz
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure you want to end this quiz?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action cannot be undone. This will end the quiz for all students immediately and move it to the completed tab.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleEndQuiz(test.id)} className="bg-destructive hover:bg-destructive/90">
+                                        End Quiz
+                                    </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -466,7 +510,7 @@ export function TestManagement() {
           </Tabs>
         </CardContent>
       </Card>
-      {isFormOpen && canManageTests && (
+      {isFormOpe'n && canManageTests && (
         <TestForm
           test={selectedTest}
           allGroups={allGroups}

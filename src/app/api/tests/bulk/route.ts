@@ -5,7 +5,7 @@ import type { NextRequest } from 'next/server';
 
 export const runtime = 'nodejs';
 
-type BulkTestAction = 'publish' | 'revert_to_draft' | 'delete';
+type BulkTestAction = 'publish' | 'revert_to_draft' | 'delete' | 'end_now';
 
 export async function POST(request: NextRequest) {
   try {
@@ -79,6 +79,14 @@ export async function POST(request: NextRequest) {
                         }
                         break;
                     
+                    case 'end_now':
+                        if (testData?.status === 'published' || testData?.status === 'ongoing') {
+                            transaction.update(testRef, { status: 'completed', date_time: new Date() });
+                        } else {
+                            throw new Error('Only ongoing tests can be ended.');
+                        }
+                        break;
+
                     default:
                         throw new Error('Invalid action specified.');
                 }
