@@ -8,6 +8,7 @@ This is a comprehensive admin dashboard for the TestPoint application, built wit
 - **Group Management**: Organize users into groups (e.g., classes) to easily assign tests, also featuring optimistic updates.
 - **Test Management**: Create and configure tests, including setting time limits, question counts, and scheduling.
 - **Dynamic Question Builder**: A "Google Forms" style interface for adding and editing questions with a real-time, auto-saving feature.
+- **Advanced Anti-Cheat System**: Configure a suite of anti-cheat measures on a per-test basis, including screenshot prevention, screen recording detection, and setting automated actions for violations.
 - **Authentication**: Secure login system using Firebase Authentication.
 
 ## Tech Stack
