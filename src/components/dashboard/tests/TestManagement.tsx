@@ -99,7 +99,7 @@ export function TestManagement() {
       }
       setAllGroups(data);
     } catch (error: any) {
-        toast({ title: 'Error fetching groups', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error fetching groups', description: error.message, variant: 'destructive' });
     }
   }, [toast]);
 
@@ -187,7 +187,10 @@ export function TestManagement() {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(testData),
+        body: JSON.stringify({
+          ...testData,
+          date_time: testData.date_time.toISOString(),
+        }),
       });
 
       const data = await response.json();

@@ -21,7 +21,8 @@ const testFormSchema = z.object({
   group_id: z.string({ required_error: "Please select a group." }),
   time_limit: z.coerce.number().min(1, { message: "Time limit must be at least 1 minute." }),
   question_count: z.coerce.number().min(0, { message: "Question count cannot be negative." }).default(0),
-  date_time: z.date({ required_error: "A date and time for the test is required." }),
+  date: z.date({ required_error: "A date for the test is required." }),
+  time: z.string({ required_error: "A time for the test is required." }).regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:mm)"),
 });
 
 type TestFormValues = z.infer<typeof testFormSchema>;
@@ -29,7 +30,7 @@ type TestFormValues = z.infer<typeof testFormSchema>;
 interface TestFormProps {
   test?: Test;
   allGroups: Group[];
-  onSave: (test: Omit<Test, 'id' | 'status'> & { id?: string }) => void;
+  onSave: (test: Omit<Test, 'id' | 'status' | 'date_time'> & { id?: string, date_time: Date }) => void;
   onClose: () => void;
 }
 
@@ -41,12 +42,24 @@ export function TestForm({ test, allGroups, onSave, onClose }: TestFormProps) {
         group_id: test?.group_id || undefined,
         time_limit: test?.time_limit || 60,
         question_count: test?.question_count || 0,
-        date_time: test?.date_time ? new Date(test.date_time) : new Date(),
+        date: test?.date_time ? new Date(test.date_time) : new Date(),
+        time: test?.date_time ? format(new Date(test.date_time), 'HH:mm') : '09:00',
     },
   });
 
   const onSubmit = (data: TestFormValues) => {
-    onSave({ id: test?.id, ...data });
+    const [hours, minutes] = data.time.split(':').map(Number);
+    const combinedDateTime = new Date(data.date);
+    combinedDateTime.setHours(hours, minutes);
+
+    onSave({ 
+        id: test?.id, 
+        name: data.name,
+        group_id: data.group_id,
+        time_limit: data.time_limit,
+        question_count: data.question_count,
+        date_time: combinedDateTime 
+    });
   };
 
   return (
@@ -126,50 +139,66 @@ export function TestForm({ test, allGroups, onSave, onClose }: TestFormProps) {
                 )}
               />
             </div>
-             <FormField
-              control={form.control}
-              name="date_time"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Test Date & Time</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(field.value, "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={(date) =>
-                          date < new Date(new Date().setHours(0,0,0,0))
-                        }
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormDescription>
-                    The official start date for the test.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+             <div className="grid grid-cols-2 gap-4">
+                <FormField
+                control={form.control}
+                name="date"
+                render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                    <FormLabel>Test Date</FormLabel>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <FormControl>
+                            <Button
+                            variant={"outline"}
+                            className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                            )}
+                            >
+                            {field.value ? (
+                                format(field.value, "PPP")
+                            ) : (
+                                <span>Pick a date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                        </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) =>
+                            date < new Date(new Date().setHours(0,0,0,0))
+                            }
+                            initialFocus
+                        />
+                        </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="time"
+                    render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                        <FormLabel>Test Time</FormLabel>
+                        <FormControl>
+                            <Input type="time" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+             </div>
+             <FormDescription>
+                The official start date and time for the test.
+             </FormDescription>
+
              <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
