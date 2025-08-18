@@ -1,48 +1,48 @@
 # Firebase Firestore Data Structure
 
-This document outlines the data structure used in Firestore for the TestPoint application. This guide is intended to help backend and mobile (Android) developers understand how data is stored and managed.
+This document outlines the current data structure used in Firestore for the TestPoint application. This guide reflects the implemented system and is intended to help developers understand how data is stored and managed.
 
 ## Root Collections
 
-The database consists of three primary root collections:
+The database consists of four primary root collections:
 
-1.  `users`
-2.  `groups`
-3.  `tests`
+1. `users` - User profiles and authentication data
+2. `groups` - Class/group management 
+3. `tests` - Test definitions with questions subcollection
+4. `test_sessions` - Individual student test-taking sessions
+
+**Note**: The Firestore rules also reference a `test_submissions` collection, but this appears to be an alias or alternative reference to `test_sessions` for completed tests.
 
 ---
 
 ## 1. `users` Collection
 
-This collection stores information about individual users. The document ID for each user is their Firebase Authentication UID.
+This collection stores user profile information. The document ID for each user is their Firebase Authentication UID.
 
 ### Document Structure: `users/{userId}`
 
 ```json
 {
   "name": "String",
-  "email": "String",
+  "email": "String", 
   "role": "String"
 }
 ```
 
 ### Field Descriptions:
 
--   **`name`**: (String) The full name of the user (e.g., "John Doe").
--   **`email`**: (String) The user's email address. This is unique for each user.
--   **`role`**: (String) Defines the user's permissions and role in the system. Can be one of the following values:
-    -   `"admin"`: Has full access to the admin dashboard.
-    -   `"teacher"`: Can create and manage groups and tests.
-    -   `"student"`: Can take tests they are assigned to.
-
-**Note on Firebase Authentication:**
-User identity (UID, email, display name) is managed by Firebase Authentication. The `users` collection in Firestore stores additional app-specific metadata like the `role`.
+- **`name`**: (String) The full name of the user (e.g., "John Doe").
+- **`email`**: (String) The user's email address. Unique identifier from Firebase Auth.
+- **`role`**: (String) User permission level. Possible values:
+  - `"admin"`: Full system access and management capabilities
+  - `"teacher"`: Can create groups, tests, and view student results
+  - `"student"`: Can take assigned tests and view results
 
 ---
 
 ## 2. `groups` Collection
 
-This collection stores groups of users, typically created by teachers or admins to assign tests to a specific set of students.
+This collection stores class/group information for organizing students and assigning tests.
 
 ### Document Structure: `groups/{groupId}`
 
@@ -56,43 +56,50 @@ This collection stores groups of users, typically created by teachers or admins 
 
 ### Field Descriptions:
 
--   **`name`**: (String) The name of the group (e.g., "Grade 10 Math Class").
--   **`userIds`**: (Array of Strings) A list of Firebase Authentication UIDs of the users who are members of this group.
--   **`created_at`**: (Timestamp) The date and time the group was created.
+- **`name`**: (String) The name of the group (e.g., "Grade 10 Math Class", "Advanced Physics").
+- **`userIds`**: (Array of Strings) List of Firebase Authentication UIDs of group members.
+- **`created_at`**: (Timestamp) When the group was created.
 
 ---
 
 ## 3. `tests` Collection
 
-This collection stores all the tests created by teachers or admins.
+This collection stores test definitions created by teachers.
 
 ### Document Structure: `tests/{testId}`
 
 ```json
 {
   "name": "String",
-  "group_id": "String",
+  "group_id": "String", 
   "time_limit": "Number",
   "question_count": "Number",
   "date_time": "Timestamp",
-  "created_at": "Timestamp"
+  "test_maker": "String",
+  "created_at": "Timestamp",
+  "status": "String"
 }
 ```
 
 ### Field Descriptions:
 
--   **`name`**: (String) The name of the test (e.g., "Final Exam - Algebra II").
--   **`group_id`**: (String) The ID of the group from the `groups` collection that this test is assigned to.
--   **`time_limit`**: (Number) The duration of the test in minutes.
--   **`question_count`**: (Number) The total number of questions in the test. This is updated via server-side logic when questions are added or removed.
--   **`date_time`**: (Timestamp) The scheduled start date and time for the test.
--   **`created_at`**: (Timestamp) The date and time the test was created.
+- **`name`**: (String) Test title (e.g., "Final Exam - Algebra II").
+- **`group_id`**: (String) Reference to `groups` collection document ID.
+- **`time_limit`**: (Number) Test duration in minutes (5-300 range).
+- **`question_count`**: (Number) Total questions in test (auto-calculated).
+- **`date_time`**: (Timestamp) Scheduled test start date and time.
+- **`test_maker`**: (String) Firebase UID of the teacher who created the test.
+- **`created_at`**: (Timestamp) Test creation timestamp.
+- **`status`**: (String) Test lifecycle status:
+  - `"draft"`: Being created/edited, not visible to students
+  - `"published"`: Available to students at scheduled time
+  - `"completed"`: Past end time, results available
 
 ### Subcollections
 
 #### `questions` Subcollection
 
-Each document in the `tests` collection has a subcollection named `questions`.
+Each test document contains a `questions` subcollection with MCQ data.
 
 ##### Document Structure: `tests/{testId}/questions/{questionId}`
 
@@ -101,20 +108,62 @@ Each document in the `tests` collection has a subcollection named `questions`.
   "text": "String",
   "options": [
     {
-      "id": "String",
-      "text": "String",
-      "isCorrect": "Boolean"
+      "id": "String", 
+      "text": "String"
     }
   ],
+  "correctOptionIndex": "Number",
   "created_at": "Timestamp"
 }
 ```
 
 ##### Field Descriptions:
 
--   **`text`**: (String) The question text itself.
--   **`options`**: (Array of Objects) A list of possible answers for the question.
-    -   **`id`**: (String) A unique identifier for the option.
-    -   **`text`**: (String) The text for the answer option.
-    -   **`isCorrect`**: (Boolean) `true` if this is the correct answer, otherwise `false`. Only one option should be correct.
--   **`created_at`**: (Timestamp) The date and time the question was created.
+- **`text`**: (String) Question text (10-500 characters).
+- **`options`**: (Array of Objects) Answer choices:
+  - **`id`**: (String) Unique option identifier
+  - **`text`**: (String) Answer option text
+- **`correctOptionIndex`**: (Number) The index of the correct option in the `options` array.
+- **`created_at`**: (Timestamp) Question creation time
+
+---
+
+## 4. `test_sessions` Collection
+
+This collection tracks individual student test-taking sessions with comprehensive monitoring.
+
+### Document Structure: `test_sessions/{sessionId}`
+
+```json
+{
+  "test_id": "String",
+  "student_id": "String", 
+  "start_time": "Timestamp",
+  "end_time": "Timestamp",
+  "final_score": "Number",
+  "status": "String",
+  "answers": {
+    "questionId1": {
+      "selected_answer_index": "Number",
+      "is_correct": "Boolean"
+    }
+  }
+}
+```
+
+### Field Descriptions:
+
+- **`test_id`**: (String) Reference to parent test document
+- **`student_id`**: (String) Firebase UID of test taker
+- **`start_time`**: (Timestamp) Test session start time
+- **`end_time`**: (Timestamp) Test completion/submission time
+- **`final_score`**: (Number) Calculated score percentage (0-100)
+- **`status`**: (String) Session state:
+  - `"not_started"`: Session created but not begun  
+  - `"in_progress"`: Student actively taking test
+  - `"completed"`: Test finished normally and graded
+  - `"submitted"`: Test submitted by student
+  - `"expired"`: Test exceeded time limit
+- **`answers`**: (Object) Student responses mapped by question ID:
+    - **`selected_answer_index`**: (Number) Index of chosen option
+    - **`is_correct`**: (Boolean) Whether the selected answer was correct
