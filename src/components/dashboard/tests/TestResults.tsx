@@ -118,7 +118,8 @@ export function TestResults() {
   }
 
   const averageScore = useMemo(() => {
-    const scoredSessions = sessions.filter(s => s.final_score !== null);
+    if (!sessions || sessions.length === 0) return 'N/A';
+    const scoredSessions = sessions.filter(s => typeof s.final_score === 'number');
     if (scoredSessions.length === 0) return 'N/A';
     const totalScore = scoredSessions.reduce((acc, s) => acc + (s.final_score ?? 0), 0);
     return (totalScore / scoredSessions.length).toFixed(2) + '%';

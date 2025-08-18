@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     // Fetch sessions
     const sessionsSnapshot = await adminDb.collection('test_sessions').where('test_id', '==', testId).get();
     if (sessionsSnapshot.empty) {
-        return NextResponse.json([]);
+        return NextResponse.json({ test: {id: testDoc.id, ...testData}, sessions: [] });
     }
 
     const studentIds = sessionsSnapshot.docs.map(doc => doc.data().student_id);
