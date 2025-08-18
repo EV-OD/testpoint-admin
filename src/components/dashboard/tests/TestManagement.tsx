@@ -11,7 +11,7 @@ import { MoreHorizontal, PlusCircle, Trash2, Edit, FileQuestion, Send, CheckCirc
 import { TestForm } from './TestForm';
 import { useToast } from '@/hooks/use-toast';
 import { format, addMinutes } from 'date-fns';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -94,7 +94,9 @@ export function TestManagement() {
     try {
       const response = await fetch('/api/groups');
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to fetch groups');
+      if (!response.ok) {
+         throw new Error(data.message || 'Failed to fetch groups');
+      }
       setAllGroups(data);
     } catch (error: any) {
       toast({ title: 'Error fetching groups', description: error.message, variant: 'destructive' });
@@ -214,7 +216,7 @@ export function TestManagement() {
   };
 
   const filteredTests = useMemo(() => {
-    const result = { draft: [], published: [], completed: [] };
+    const result: { draft: TestWithGroup[], published: TestWithGroup[], completed: TestWithGroup[] } = { draft: [], published: [], completed: [] };
     if (!tests || !Array.isArray(tests)) {
       return result;
     }
@@ -367,10 +369,16 @@ export function TestManagement() {
                           </>
                         )}
                         {status === 'published' && (
+                          <>
                            <DropdownMenuItem onClick={() => handleBulkAction([test.id], 'revert_to_draft')}>
                                 <ArchiveRestore className="mr-2 h-4 w-4" />
                                 Revert to Draft
                            </DropdownMenuItem>
+                           <DropdownMenuItem onClick={() => handleViewResults(test.id)}>
+                             <BarChart className="mr-2 h-4 w-4" />
+                             View Results
+                          </DropdownMenuItem>
+                          </>
                         )}
                         {status === 'completed' && (
                            <DropdownMenuItem onClick={() => handleViewResults(test.id)}>
@@ -411,7 +419,7 @@ export function TestManagement() {
            <Tabs defaultValue="draft" onValueChange={(v) => setActiveTab(v as TestStatus)}>
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="draft">Drafts ({filteredTests.draft.length})</TabsTrigger>
-              <TabsTrigger value="published">Published ({filteredTests.published.length})</TabsTrigger>
+              <TabsTrigger value="published">Ongoing ({filteredTests.published.length})</TabsTrigger>
               <TabsTrigger value="completed">Completed ({filteredTests.completed.length})</TabsTrigger>
             </TabsList>
 
@@ -470,7 +478,3 @@ export function TestManagement() {
     </>
   );
 }
-
-    
-
-    
