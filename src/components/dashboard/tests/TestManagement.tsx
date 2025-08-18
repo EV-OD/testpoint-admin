@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { MoreHorizontal, PlusCircle, Trash2, Edit, FileQuestion, Send, CheckCircle, Circle, ArchiveRestore, Search, X, BarChart } from 'lucide-react';
 import { TestForm } from './TestForm';
 import { useToast } from '@/hooks/use-toast';
-import { format, addMinutes } from 'date-fns';
+import { format, addMinutes, addHours } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,7 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 
 type TestWithGroup = Test & { groups: { name: string } | null };
-type TestStatus = 'draft' | 'published' | 'completed';
+type TestStatus = 'draft' | 'ongoing' | 'completed';
 
 export function TestManagement() {
   const [tests, setTests] = useState<TestWithGroup[]>([]);
@@ -71,11 +71,15 @@ export function TestManagement() {
       const updatedTests = data.map((test: Test) => {
         if (test.status === 'published') {
             const testStart = new Date(test.date_time);
-            if (isNaN(testStart.getTime())) return test; // Invalid date
-            const testEnd = addMinutes(testStart, test.time_limit);
-            if (testEnd < now) {
+            if (isNaN(testStart.getTime())) return { ...test, status: 'ongoing'};
+            
+            // Add a 6-hour grace period before moving to completed
+            const testEndWithGrace = addHours(addMinutes(testStart, test.time_limit), 6);
+            
+            if (testEndWithGrace < now) {
                  return { ...test, status: 'completed' };
             }
+            return { ...test, status: 'ongoing'};
         }
         return test;
       });
@@ -216,7 +220,7 @@ export function TestManagement() {
   };
 
   const filteredTests = useMemo(() => {
-    const result: { draft: TestWithGroup[], published: TestWithGroup[], completed: TestWithGroup[] } = { draft: [], published: [], completed: [] };
+    const result: { draft: TestWithGroup[], ongoing: TestWithGroup[], completed: TestWithGroup[] } = { draft: [], ongoing: [], completed: [] };
     if (!tests || !Array.isArray(tests)) {
       return result;
     }
@@ -230,15 +234,16 @@ export function TestManagement() {
     }
     
     result.draft = filtered.filter(t => t.status === 'draft');
-    result.published = filtered.filter(t => t.status === 'published');
+    result.ongoing = filtered.filter(t => t.status === 'ongoing');
     result.completed = filtered.filter(t => t.status === 'completed');
     
     return result;
   }, [tests, textFilter, groupFilter]);
 
   const handleSelectAll = (e: boolean) => {
+    const currentTests = filteredTests[activeTab] || [];
     if (e) {
-      setSelectedIds(filteredTests[activeTab].map(t => t.id));
+      setSelectedIds(currentTests.map(t => t.id));
     } else {
       setSelectedIds([]);
     }
@@ -268,7 +273,7 @@ export function TestManagement() {
             </Button>
           </>
         )}
-        {activeTab === 'published' && (
+        {activeTab === 'ongoing' && (
            <Button size="sm" onClick={() => handleBulkAction(selectedIds, 'revert_to_draft')}>
               <ArchiveRestore className="mr-2 h-4 w-4" /> Revert to Draft
             </Button>
@@ -277,7 +282,7 @@ export function TestManagement() {
     );
   }
   
-  const renderTestTable = (testList: TestWithGroup[], status: Test['status']) => {
+  const renderTestTable = (testList: TestWithGroup[], status: Test['status'] | 'ongoing') => {
     const isAllSelected = testList.length > 0 && selectedIds.length === testList.length;
 
     return (
@@ -368,7 +373,7 @@ export function TestManagement() {
                             </AlertDialog>
                           </>
                         )}
-                        {status === 'published' && (
+                        {status === 'ongoing' && (
                           <>
                            <DropdownMenuItem onClick={() => handleBulkAction([test.id], 'revert_to_draft')}>
                                 <ArchiveRestore className="mr-2 h-4 w-4" />
@@ -419,7 +424,7 @@ export function TestManagement() {
            <Tabs defaultValue="draft" onValueChange={(v) => setActiveTab(v as TestStatus)}>
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="draft">Drafts ({filteredTests.draft.length})</TabsTrigger>
-              <TabsTrigger value="published">Ongoing ({filteredTests.published.length})</TabsTrigger>
+              <TabsTrigger value="ongoing">Ongoing ({filteredTests.ongoing.length})</TabsTrigger>
               <TabsTrigger value="completed">Completed ({filteredTests.completed.length})</TabsTrigger>
             </TabsList>
 
@@ -457,8 +462,8 @@ export function TestManagement() {
                 <TabsContent value="draft" className="mt-0">
                     {renderTestTable(filteredTests.draft, 'draft')}
                 </TabsContent>
-                <TabsContent value="published" className="mt-0">
-                    {renderTestTable(filteredTests.published, 'published')}
+                <TabsContent value="ongoing" className="mt-0">
+                    {renderTestTable(filteredTests.ongoing, 'ongoing')}
                 </TabsContent>
                 <TabsContent value="completed" className="mt-0">
                     {renderTestTable(filteredTests.completed, 'completed')}
@@ -478,3 +483,5 @@ export function TestManagement() {
     </>
   );
 }
+
+    
