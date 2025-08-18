@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   const { id } = params;
   try {
-    const { name, group_id, time_limit, question_count, date_time } = await request.json();
+    const { name, group_id, time_limit, question_count, date_time, antiCheatConfig } = await request.json();
     const sessionCookie = request.cookies.get('session')?.value;
 
     if (!sessionCookie) {
@@ -41,14 +41,20 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         return NextResponse.json({ message: 'Cannot edit a test that is not in draft status.' }, { status: 403 });
     }
 
-
-    await testRef.update({
+    const updateData: any = {
         name,
         group_id,
         time_limit,
         question_count,
         date_time: new Date(date_time),
-    });
+    };
+
+    if (antiCheatConfig) {
+        updateData.antiCheatConfig = antiCheatConfig;
+    }
+
+
+    await testRef.update(updateData);
 
     return NextResponse.json({ message: 'Test updated successfully' });
   } catch (error: any) {

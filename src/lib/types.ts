@@ -1,5 +1,15 @@
 
 
+export type AntiCheatConfig = {
+  enabled: boolean;
+  enableScreenshotPrevention: boolean;
+  enableScreenRecordingDetection: boolean;
+  maxWarnings: number;
+  violationAction: 'WARNING_ONLY' | 'SUBMIT_TEST' | 'END_SESSION';
+  preset: 'STRICT' | 'BALANCED' | 'LENIENT' | 'CUSTOM';
+}
+
+
 export type User = {
   id: string; 
   name: string;
@@ -22,7 +32,8 @@ export type Test = {
   question_count: number;
   date_time: string; // ISO 8601 format
   test_maker?: string; // UID of the user who created the test
-  status: 'draft' | 'published' | 'completed';
+  status: 'draft' | 'published' | 'completed' | 'ongoing';
+  antiCheatConfig?: AntiCheatConfig;
 };
 
 export type Option = {

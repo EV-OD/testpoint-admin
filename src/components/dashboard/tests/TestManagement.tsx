@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -69,7 +70,7 @@ export function TestManagement() {
       
       const now = new Date();
       const updatedTests = data.map((test: Test) => {
-        if (test.status === 'published') {
+        if (test.status === 'published' || test.status === 'ongoing') {
             const testStart = new Date(test.date_time);
             if (isNaN(testStart.getTime())) return { ...test, status: 'ongoing'};
             
@@ -213,7 +214,7 @@ export function TestManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...testData,
-          date_time: testData.date_time.toISOString(),
+          date_time: (testData.date_time as any).toISOString(),
         }),
       });
 
@@ -236,7 +237,7 @@ export function TestManagement() {
 
   const filteredTests = useMemo(() => {
     const result: { draft: TestWithGroup[], ongoing: TestWithGroup[], completed: TestWithGroup[] } = { draft: [], ongoing: [], completed: [] };
-    if (!tests || !Array.isArray(tests)) {
+    if (!Array.isArray(tests)) {
       return result;
     }
 
